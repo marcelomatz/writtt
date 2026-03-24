@@ -12,6 +12,10 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+// CurrentVersion is set at build time via -ldflags "-X main.CurrentVersion=vX.Y.Z".
+// Falls back to "dev" for local builds.
+var CurrentVersion = "dev"
+
 // App struct
 type App struct {
 	ctx context.Context
@@ -429,4 +433,9 @@ func (a *App) LockApp() {
 // IsVaultUnlocked returns whether the vault is currently accessible.
 func (a *App) IsVaultUnlocked() bool {
 	return storage.IsVaultUnlocked()
+}
+
+// GetVersion returns the application version injected at build time.
+func (a *App) GetVersion() string {
+	return CurrentVersion
 }
