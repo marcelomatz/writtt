@@ -1,0 +1,150 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 
+  Light Theme — Cream Nostalgia
+  90s warm parchment — not pure white, never pure white.
+  Backgrounds: warm biscuit/cream stack
+  Text: near-black for maximum contrast; accents stay in the warm palette
+*/
+:root {
+  --bg-base:        #e8e0d0;   /* warm parchment — the "page" */
+  --bg-surface:     #dfd6c4;   /* slightly darker biscuit — cards, panels */
+  --bg-elevated:    #d6ccb8;   /* deeper caramel for hover states & modals */
+  --border:         #c4b99e;   /* warm tan border */
+  --border-subtle:  #d4c9b1;   /* softer cream border */
+  --text-primary:   #151210;   /* near-black — strong contrast on cream */
+  --text-secondary: #5a4f3e;   /* warm dark sepia for secondary text */
+  --text-muted:     #9a8c76;   /* muted warm sand — stays in the palette */
+  --accent:         #2563eb;
+}
+
+/* Dark Theme — override all variables so inline styles respect the theme */
+.dark {
+  --bg-base:        #020617;
+  --bg-surface:     #0b1224;
+  --bg-elevated:    #0f172a;
+  --border:         #1e293b;
+  --border-subtle:  #172032;
+  --text-primary:   #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted:     #475569;
+  --accent:         #3b82f6;
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  width: 100vw;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-weight: 300;
+  overflow: hidden;
+}
+
+html.dark body, html.dark #root {
+  background-color: #020617;
+  color: #f1f5f9;
+}
+
+.logo-font {
+  font-family: 'Inter', sans-serif;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  font-style: italic;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 10px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #1e293b;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #c4bfb8;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* Remove Wails default focus border */
+*:focus {
+  outline: none !important;
+}
+
+/* Tiptap placeholder */
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--text-muted);
+  pointer-events: none;
+  height: 0;
+}
+
+.dark .ProseMirror p.is-editor-empty:first-child::before {
+  color: #475569;
+}
+
+/* Tiptap Image Alignment — handled via .image-figure Tailwind classes (mr-auto, ml-auto, mx-auto) */
+/* These rules provide a CSS-only fallback and ensure floats render correctly. */
+.ProseMirror .image-figure.mr-auto {
+  margin-right: auto;
+  margin-left: 0;
+}
+.ProseMirror .image-figure.ml-auto {
+  margin-left: auto;
+  margin-right: 0;
+}
+.ProseMirror .image-figure.mx-auto {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+
+/* ── Image NodeView: figure + figcaption ──────────────────────────────── */
+.ProseMirror .image-figure {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-width: 100%;
+}
+
+.ProseMirror .image-figure img {
+  max-width: 100%;
+  border-radius: 0.375rem;
+  display: block;
+}
+
+.ProseMirror .image-figure.mx-auto {
+  text-align: center;
+}
+
+/* figcaption / .image-caption */
+.ProseMirror .image-figure figcaption,
+.ProseMirror .image-figure .image-caption {
+  font-size: 0.8rem;
+  font-style: italic;
+  color: var(--text-tertiary, #94a3b8);
+  text-align: center;
+  line-height: 1.4;
+  padding: 0 0.5rem;
+}

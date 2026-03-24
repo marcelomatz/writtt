@@ -1,0 +1,38 @@
+# Build output
+build/bin/
+build/darwin/
+build/windows/
+build/linux/
+
+# Frontend
+node_modules/
+frontend/dist/
+frontend/node_modules/
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Wails
+wailsjs/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Website has its own repo — do not track here
+website/
+
+# User data (never commit)
+*.writtt/
