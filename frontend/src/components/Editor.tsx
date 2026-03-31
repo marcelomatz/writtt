@@ -1,42 +1,48 @@
-import { useEditor, EditorContent, ReactNodeViewRenderer } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import { Markdown } from 'tiptap-markdown';
-import Image from '@tiptap/extension-image';
-
+import BubbleMenuExtension from '@tiptap/extension-bubble-menu';
 import CharacterCount from '@tiptap/extension-character-count';
-import Placeholder from '@tiptap/extension-placeholder';
-import Typography from '@tiptap/extension-typography';
 import Focus from '@tiptap/extension-focus';
+import Image from '@tiptap/extension-image';
+import Link from '@tiptap/extension-link';
+import Placeholder from '@tiptap/extension-placeholder';
+import TextAlign from '@tiptap/extension-text-align';
+import Typography from '@tiptap/extension-typography';
+import { EditorContent, ReactNodeViewRenderer, useEditor } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
 import { useEffect, useRef, useState } from 'react';
+import { Markdown } from 'tiptap-markdown';
+import { SaveAttachment } from '../../wailsjs/go/main/App';
+import { useTranslation } from '../hooks/useTranslation';
 import { useEditorStore } from '../store/editorStore';
 import { useSecurityStore } from '../store/securityStore';
-
-import { SaveAttachment } from '../../wailsjs/go/main/App';
-import { Toolbar } from './Toolbar';
 import { BubbleMenu } from './BubbleMenu';
 import { ImageBubbleMenu } from './ImageBubbleMenu';
-import { VaultUnlockOverlay } from './VaultUnlockOverlay';
 import { ImageNodeView } from './ImageNodeView';
-import Link from '@tiptap/extension-link';
-import TextAlign from '@tiptap/extension-text-align';
-import BubbleMenuExtension from '@tiptap/extension-bubble-menu';
+import { Toolbar } from './Toolbar';
+import { VaultUnlockOverlay } from './VaultUnlockOverlay';
+
+const dict = {
+  pt: {
+    placeholder_body: 'Comece a pensar aqui...',
+    no_document: 'No document selected. Cmd+K to search or create.',
+    placeholder_title: 'Dê um título ao seu pensamento...',
+  },
+  en: {
+    placeholder_body: 'Start thinking here...',
+    no_document: 'No document selected. Cmd+K to search or create.',
+    placeholder_title: 'Give your thought a title...',
+  },
+};
 
 export function Editor() {
-  const { 
-    primaryDoc,
-    saveCurrentDocument,
-    setStats,
-    updateDocumentTitle
-  } = useEditorStore();
+  const t = useTranslation(dict);
+  const { primaryDoc, saveCurrentDocument, setStats, updateDocumentTitle } = useEditorStore();
 
   const doc = primaryDoc;
   const { vaultUnlocked } = useSecurityStore();
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const scrollRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
-  // Track whether the user has scrolled past the initial position.
-  // Used to toggle the glassmorphism "floating" effect on the toolbar.
   const [scrolled, setScrolled] = useState(false);
 
   const handleScroll = () => {
@@ -45,7 +51,6 @@ export function Editor() {
     setScrolled(el.scrollTop > 8);
   };
 
-  // Recalculate textarea height whenever the doc changes (e.g. on open)
   useEffect(() => {
     const el = titleRef.current;
     if (!el) return;
@@ -77,8 +82,6 @@ export function Editor() {
             },
           };
         },
-        // Custom markdown serializer: encode data-caption as the image title
-        // so it survives save/load. Output: ![alt](src "caption")
         addStorage() {
           return {
             markdown: {
@@ -92,7 +95,6 @@ export function Editor() {
             },
           };
         },
-        // Restore data-caption from the markdown title attribute on parse
         parseHTML() {
           return [
             {
@@ -103,7 +105,10 @@ export function Editor() {
                   src: (el as HTMLImageElement).getAttribute('src'),
                   alt: (el as HTMLImageElement).getAttribute('alt'),
                   'data-align': (el as HTMLImageElement).getAttribute('data-align') ?? 'center',
-                  'data-caption': (el as HTMLImageElement).getAttribute('data-caption') ?? (el as HTMLImageElement).getAttribute('title') ?? '',
+                  'data-caption':
+                    (el as HTMLImageElement).getAttribute('data-caption') ??
+                    (el as HTMLImageElement).getAttribute('title') ??
+                    '',
                 };
               },
             },
@@ -117,7 +122,7 @@ export function Editor() {
       Typography,
       Focus.configure({ className: 'has-focus', mode: 'all' }),
       Placeholder.configure({
-        placeholder: 'Comece a pensar aqui...',
+        placeholder: t.placeholder_body,
       }),
       TextAlign.configure({
         types: ['heading', 'paragraph'],
@@ -133,7 +138,12 @@ export function Editor() {
         class: 'focus:outline-none min-h-[500px]',
       },
       handleDrop: (view, event, slice, moved) => {
-        if (!moved && event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0]) {
+        if (
+          !moved &&
+          event.dataTransfer &&
+          event.dataTransfer.files &&
+          event.dataTransfer.files[0]
+        ) {
           const file = event.dataTransfer.files[0];
           if (file.type.startsWith('image/')) {
             const reader = new FileReader();
@@ -150,7 +160,7 @@ export function Editor() {
                     view.dispatch(tr);
                   }
                 } catch (err) {
-                  console.error("Failed to save attachment:", err);
+                  console.error('Failed to save attachment:', err);
                 }
               }
             };
@@ -175,7 +185,7 @@ export function Editor() {
                   const tr = view.state.tr.replaceSelectionWith(node);
                   view.dispatch(tr);
                 } catch (err) {
-                  console.error("Failed to save pasted attachment:", err);
+                  console.error('Failed to save pasted attachment:', err);
                 }
               }
             };
@@ -184,12 +194,11 @@ export function Editor() {
           }
         }
         return false;
-      }
+      },
     },
     content: doc?.content || '',
     autofocus: 'end',
     onUpdate: ({ editor }) => {
-      // Ensure there's always a paragraph after the last node if it's an image
       const { doc } = editor.state;
       const lastNode = doc.lastChild;
       if (lastNode && lastNode.type.name === 'image') {
@@ -198,22 +207,18 @@ export function Editor() {
         editor.chain().insertContentAt(endPos, p.toJSON()).run();
       }
 
-      const markdown = (editor.storage as any).markdown.getMarkdown();
-
-
-      
-      // Update stats reactively
       setStats({
         words: editor.storage.characterCount.words(),
         chars: editor.storage.characterCount.characters(),
         paragraphs: editor.state.doc.childCount,
       });
 
-      // Debounce saving
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => {
+        const markdown = (editor.storage as any).markdown.getMarkdown();
+        useEditorStore.getState().updateDocumentContent(markdown);
         saveCurrentDocument(markdown);
-      }, 800);
+      }, 1500);
     },
   });
 
@@ -224,58 +229,62 @@ export function Editor() {
         chars: editor.storage.characterCount.characters(),
         paragraphs: editor.state.doc.childCount,
       });
+      // Force an initial update of the content on load so we have the latest immediately
+      const initialMarkdown = (editor.storage as any).markdown.getMarkdown();
+      useEditorStore.getState().updateDocumentContent(initialMarkdown);
     }
   }, [editor]);
 
+  const currentDocId = useRef(doc?.frontmatter?.id);
+
   useEffect(() => {
-    if (editor && doc && (editor.storage as any).markdown.getMarkdown() !== doc.content) {
+    if (!editor || !doc) return;
+
+    const normalized = (doc.content || '').replace(
+      /!\[([^\]]*)\]\(\/attachments\/([^)]+)\)/g,
+      (_match, alt, rawPath) => {
+        const encodedPath = rawPath
+          .split('/')
+          .map((seg: string) => encodeURIComponent(decodeURIComponent(seg)))
+          .join('/');
+        return `![${alt}](/attachments/${encodedPath})`;
+      }
+    );
+
+    if (doc.frontmatter?.id !== currentDocId.current) {
+      currentDocId.current = doc.frontmatter?.id;
+      editor.commands.setContent(normalized);
+      return;
+    }
+
+    if ((editor.storage as any).markdown.getMarkdown() !== doc.content) {
       if (!editor.isFocused) {
-        // Backward-compat: old documents were saved with unencoded spaces in
-        // attachment URLs (e.g. ![alt](/attachments/my file.png)).
-        // markdown-it only parses image URLs without spaces, so we encode
-        // each path segment before passing the content to the parser.
-        const normalized = doc.content.replace(
-          /!\[([^\]]*)\]\(\/attachments\/([^)]+)\)/g,
-          (_match, alt, rawPath) => {
-            const encodedPath = rawPath
-              .split('/')
-              .map((seg: string) => encodeURIComponent(decodeURIComponent(seg)))
-              .join('/');
-            return `![${alt}](/attachments/${encodedPath})`;
-          }
-        );
-        // tiptap-markdown overrides setContent to transparently parse markdown
-        // — image nodes (![alt](url)) are handled correctly provided the URL
-        // contains no unencoded spaces.
+        const currentSelection = editor.state.selection;
         editor.commands.setContent(normalized);
+        editor.commands.setTextSelection(currentSelection);
       }
     }
-  }, [doc?.content, editor]);
+  }, [doc?.content, doc?.frontmatter?.id, editor]);
 
+  const { sessionCreatedDocId } = useEditorStore();
+  
   if (!doc) {
     return (
       <div className="h-full flex items-center justify-center text-slate-400 dark:text-slate-600">
-        <p>No document selected. Cmd+K to search or create.</p>
+        <p>{t.no_document}</p>
       </div>
     );
   }
 
-  if (doc.frontmatter?.is_vault && !vaultUnlocked) {
+  const isSessionCreated =
+    !doc.frontmatter?.id || sessionCreatedDocId === doc.frontmatter?.id || sessionCreatedDocId === 'pending';
+
+  if (doc.frontmatter?.is_vault && !vaultUnlocked && !isSessionCreated) {
     return <VaultUnlockOverlay />;
   }
 
   return (
     <div className="h-full flex flex-col transition-all duration-500">
-      {/*
-        ── Sticky toolbar ───────────────────────────────────────────────────
-        The toolbar lives OUTSIDE the scroll container so it never scrolls
-        away. When the user scrolls past 8px the wrapper picks up a glassy
-        backdrop (glassmorphism) and a soft shadow — giving it a "floating"
-        feel aligned with the Antigravity Design principle: weightless UI
-        elements that lift above the content as you navigate through it.
-        All transitions run at 300ms ease-out to match the rest of the UI.
-      */}
-      {/* Toolbar wrapper — always transparent so only the pill stands out */}
       <div className="flex justify-center w-full px-16 pt-4 pb-2" style={{ zIndex: 10 }}>
         <div
           className="w-full max-w-4xl"
@@ -291,16 +300,10 @@ export function Editor() {
         </div>
       </div>
 
-      {/* BubbleMenus render into portals – independent of scroll */}
       {editor && <BubbleMenu editor={editor} />}
       {editor && <ImageBubbleMenu editor={editor} />}
 
-      {/* ── Scrollable content area ──────────────────────────────────────── */}
-      <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto"
-      >
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
         <div className="px-16 py-12 prose prose-slate dark:prose-invert max-w-4xl mx-auto focus:outline-none selection:bg-blue-100/50 dark:selection:bg-blue-900/30">
           <textarea
             ref={titleRef}
@@ -316,8 +319,8 @@ export function Editor() {
               el.style.height = 'auto';
               el.style.height = el.scrollHeight + 'px';
             }}
-            placeholder="Dê um título ao seu pensamento..."
-            className="w-full mb-8 text-7xl font-extralight text-slate-900 dark:text-white outline-none bg-transparent border-none p-0 tracking-tighter placeholder:text-slate-100 dark:placeholder:text-slate-900 transition-all duration-500 resize-none overflow-hidden leading-tight"
+            placeholder={t.placeholder_title}
+            className="w-full mb-8 text-5xl md:text-6xl font-extralight text-slate-900 dark:text-white outline-none bg-transparent border-none p-0 tracking-tight placeholder:text-slate-200 dark:placeholder:text-slate-800 transition-all duration-500 resize-none overflow-hidden leading-tight break-words whitespace-pre-wrap"
           />
           <div className="font-light leading-relaxed text-lg">
             <EditorContent editor={editor} />

@@ -1,27 +1,28 @@
-import { Editor } from '@tiptap/react';
-import { 
-  Bold, 
-  Italic, 
-  List, 
-  ListOrdered, 
-  Quote, 
-  Code, 
-  Undo, 
-  Redo,
+import type { Editor } from '@tiptap/react';
+import EmojiPicker, { type EmojiClickData, Theme } from 'emoji-picker-react';
+import {
+  AlignCenter,
+  AlignJustify,
+  AlignLeft,
+  AlignRight,
+  Bold,
+  Code,
   Heading1,
   Heading2,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  AlignJustify,
-  Link as LinkIcon,
   Image as ImageIcon,
+  Italic,
+  Link as LinkIcon,
+  List,
+  ListOrdered,
+  Quote,
+  Redo,
   Smile,
+  Undo,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
-import { useModalStore } from '../store/modalStore';
 import { SaveAttachment } from '../../wailsjs/go/main/App';
+import { useTranslation } from '../hooks/useTranslation';
+import { useModalStore } from '../store/modalStore';
 
 interface ToolbarProps {
   editor: Editor | null;
@@ -30,21 +31,70 @@ interface ToolbarProps {
 const ICON_SIZE = 'w-[18px] h-[18px]';
 const ICON_STROKE = 1.75;
 
+const dict = {
+  pt: {
+    prompt_link_title: 'Adicionar Link',
+    prompt_link_msg: 'Insira a URL do link:',
+    prompt_media_title: 'Adicionar Mídia',
+    prompt_media_msg: 'Insira a URL ou faça upload de um arquivo:',
+    tool_undo: 'Desfazer (Ctrl+Z)',
+    tool_redo: 'Refazer (Ctrl+Y)',
+    tool_h1: 'Título 1',
+    tool_h2: 'Título 2',
+    tool_bold: 'Negrito (Ctrl+B)',
+    tool_italic: 'Itálico (Ctrl+I)',
+    tool_code: 'Bloco de Código',
+    tool_quote: 'Citação',
+    tool_align_left: 'Alinhar à esquerda',
+    tool_align_center: 'Centralizar',
+    tool_align_right: 'Alinhar à direita',
+    tool_align_justify: 'Justificar',
+    tool_bullet: 'Lista com marcadores',
+    tool_ordered: 'Lista numerada',
+    tool_link: 'Inserir Link',
+    tool_image: 'Inserir Imagem / Mídia',
+    tool_emoji: 'Emoji',
+  },
+  en: {
+    prompt_link_title: 'Add Link',
+    prompt_link_msg: 'Enter the link URL:',
+    prompt_media_title: 'Add Media',
+    prompt_media_msg: 'Enter the URL or upload a file:',
+    tool_undo: 'Undo (Ctrl+Z)',
+    tool_redo: 'Redo (Ctrl+Y)',
+    tool_h1: 'Heading 1',
+    tool_h2: 'Heading 2',
+    tool_bold: 'Bold (Ctrl+B)',
+    tool_italic: 'Italic (Ctrl+I)',
+    tool_code: 'Code Block',
+    tool_quote: 'Blockquote',
+    tool_align_left: 'Align Left',
+    tool_align_center: 'Center',
+    tool_align_right: 'Align Right',
+    tool_align_justify: 'Justify',
+    tool_bullet: 'Bullet List',
+    tool_ordered: 'Ordered List',
+    tool_link: 'Insert Link',
+    tool_image: 'Insert Image / Media',
+    tool_emoji: 'Emoji',
+  },
+};
+
 function Divider() {
   return (
-    <span 
+    <span
       className="w-px h-5 mx-1 flex-shrink-0 rounded-full"
       style={{ backgroundColor: 'var(--border)' }}
     />
   );
 }
 
-function ToolBtn({ 
-  icon: Icon, 
-  onClick, 
-  isActive = false, 
-  disabled = false, 
-  title 
+function ToolBtn({
+  icon: Icon,
+  onClick,
+  isActive = false,
+  disabled = false,
+  title,
 }: {
   icon: React.ElementType;
   onClick: () => void;
@@ -61,23 +111,20 @@ function ToolBtn({
         relative flex items-center justify-center w-8 h-8 rounded-lg
         transition-all duration-200 ease-out flex-shrink-0
         disabled:opacity-25 disabled:cursor-not-allowed
-        ${isActive
-          ? 'text-white shadow-sm'
-          : 'hover:scale-105 active:scale-95'
-        }
+        ${isActive ? 'text-white shadow-sm' : 'hover:scale-105 active:scale-95'}
       `}
       style={
         isActive
           ? { backgroundColor: 'var(--accent, #3b82f6)', color: '#fff' }
           : { color: 'var(--text-secondary)' }
       }
-      onMouseEnter={e => {
+      onMouseEnter={(e) => {
         if (!isActive && !disabled) {
           (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-elevated)';
           (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
         }
       }}
-      onMouseLeave={e => {
+      onMouseLeave={(e) => {
         if (!isActive) {
           (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
           (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
@@ -94,6 +141,7 @@ export function Toolbar({ editor }: ToolbarProps) {
 
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const emojiRef = useRef<HTMLDivElement>(null);
+  const t = useTranslation(dict);
 
   // Detect current theme from CSS variable set on :root
   const [emojiTheme, setEmojiTheme] = useState<Theme>(Theme.LIGHT);
@@ -102,16 +150,20 @@ export function Toolbar({ editor }: ToolbarProps) {
       const s = getComputedStyle(document.documentElement);
       const get = (v: string) => s.getPropertyValue(v).trim();
 
-      const bg       = get('--bg-surface');
+      const bg = get('--bg-surface');
       const elevated = get('--bg-elevated');
-      const text     = get('--text-primary');
-      const border   = get('--border');
-      const accent   = get('--accent');
+      const text = get('--text-primary');
+      const border = get('--border');
+      const accent = get('--accent');
 
       // Detect dark/light for the Theme prop
-      const isDark = document.documentElement.classList.contains('dark') ||
+      const isDark =
+        document.documentElement.classList.contains('dark') ||
         get('color-scheme').includes('dark') ||
-        bg.startsWith('#1') || bg.startsWith('#0') || bg.startsWith('rgb(1') || bg.startsWith('rgb(0');
+        bg.startsWith('#1') ||
+        bg.startsWith('#0') ||
+        bg.startsWith('rgb(1') ||
+        bg.startsWith('rgb(0');
       setEmojiTheme(isDark ? Theme.DARK : Theme.LIGHT);
 
       // Inject / update a style tag that overrides EmojiPickerReact CSS vars
@@ -169,8 +221,8 @@ export function Toolbar({ editor }: ToolbarProps) {
     const previousUrl = editor.getAttributes('link').href;
     useModalStore.getState().show({
       type: 'prompt',
-      title: 'Adicionar Link',
-      message: 'Insira a URL do link:',
+      title: t.prompt_link_title,
+      message: t.prompt_link_msg,
       initialValue: previousUrl,
       onConfirm: (url) => {
         if (url) {
@@ -180,7 +232,7 @@ export function Toolbar({ editor }: ToolbarProps) {
         }
       },
     });
-  }, [editor]);
+  }, [editor, t]);
 
   const addImage = useCallback(() => {
     const handleFileUpload = (file: File) => {
@@ -193,7 +245,11 @@ export function Toolbar({ editor }: ToolbarProps) {
             if (file.type.startsWith('image/')) {
               editor.chain().focus().setImage({ src: url, alt: file.name }).run();
             } else {
-              editor.chain().focus().insertContent(`<a href="${url}" download>${file.name}</a>`).run();
+              editor
+                .chain()
+                .focus()
+                .insertContent(`<a href="${url}" download>${file.name}</a>`)
+                .run();
             }
           } catch (err) {
             console.error('Failed to save attachment:', err);
@@ -205,14 +261,14 @@ export function Toolbar({ editor }: ToolbarProps) {
 
     useModalStore.getState().show({
       type: 'prompt-upload',
-      title: 'Adicionar Mídia',
-      message: 'Insira a URL ou faça upload de um arquivo:',
+      title: t.prompt_media_title,
+      message: t.prompt_media_msg,
       onConfirm: (url) => {
         if (url) editor.chain().focus().setImage({ src: url }).run();
       },
       onFileUpload: handleFileUpload,
     });
-  }, [editor]);
+  }, [editor, t]);
 
   const onEmojiClick = (emojiObject: EmojiClickData) => {
     editor.chain().focus().insertContent(emojiObject.emoji).run();
@@ -221,7 +277,7 @@ export function Toolbar({ editor }: ToolbarProps) {
 
   return (
     <div
-      className="flex items-center justify-center gap-0.5 px-3 py-2 z-10 transition-colors duration-300 rounded-xl"
+      className="flex flex-wrap items-center justify-center gap-1 px-3 py-2 z-10 transition-colors duration-300 rounded-2xl"
       style={{
         backgroundColor: 'var(--bg-surface)',
         border: '1px solid var(--border-subtle)',
@@ -234,13 +290,13 @@ export function Toolbar({ editor }: ToolbarProps) {
           icon={Undo}
           onClick={() => editor.chain().focus().undo().run()}
           disabled={!editor.can().undo()}
-          title="Desfazer (Ctrl+Z)"
+          title={t.tool_undo}
         />
         <ToolBtn
           icon={Redo}
           onClick={() => editor.chain().focus().redo().run()}
           disabled={!editor.can().redo()}
-          title="Refazer (Ctrl+Y)"
+          title={t.tool_redo}
         />
       </div>
 
@@ -252,13 +308,13 @@ export function Toolbar({ editor }: ToolbarProps) {
           icon={Heading1}
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
           isActive={editor.isActive('heading', { level: 1 })}
-          title="Título 1"
+          title={t.tool_h1}
         />
         <ToolBtn
           icon={Heading2}
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
           isActive={editor.isActive('heading', { level: 2 })}
-          title="Título 2"
+          title={t.tool_h2}
         />
       </div>
 
@@ -270,25 +326,25 @@ export function Toolbar({ editor }: ToolbarProps) {
           icon={Bold}
           onClick={() => editor.chain().focus().toggleBold().run()}
           isActive={editor.isActive('bold')}
-          title="Negrito (Ctrl+B)"
+          title={t.tool_bold}
         />
         <ToolBtn
           icon={Italic}
           onClick={() => editor.chain().focus().toggleItalic().run()}
           isActive={editor.isActive('italic')}
-          title="Itálico (Ctrl+I)"
+          title={t.tool_italic}
         />
         <ToolBtn
           icon={Code}
           onClick={() => editor.chain().focus().toggleCodeBlock().run()}
           isActive={editor.isActive('codeBlock')}
-          title="Bloco de Código"
+          title={t.tool_code}
         />
         <ToolBtn
           icon={Quote}
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
           isActive={editor.isActive('blockquote')}
-          title="Citação"
+          title={t.tool_quote}
         />
       </div>
 
@@ -300,25 +356,25 @@ export function Toolbar({ editor }: ToolbarProps) {
           icon={AlignLeft}
           onClick={() => editor.chain().focus().setTextAlign('left').run()}
           isActive={editor.isActive({ textAlign: 'left' })}
-          title="Alinhar à esquerda"
+          title={t.tool_align_left}
         />
         <ToolBtn
           icon={AlignCenter}
           onClick={() => editor.chain().focus().setTextAlign('center').run()}
           isActive={editor.isActive({ textAlign: 'center' })}
-          title="Centralizar"
+          title={t.tool_align_center}
         />
         <ToolBtn
           icon={AlignRight}
           onClick={() => editor.chain().focus().setTextAlign('right').run()}
           isActive={editor.isActive({ textAlign: 'right' })}
-          title="Alinhar à direita"
+          title={t.tool_align_right}
         />
         <ToolBtn
           icon={AlignJustify}
           onClick={() => editor.chain().focus().setTextAlign('justify').run()}
           isActive={editor.isActive({ textAlign: 'justify' })}
-          title="Justificar"
+          title={t.tool_align_justify}
         />
       </div>
 
@@ -330,13 +386,13 @@ export function Toolbar({ editor }: ToolbarProps) {
           icon={List}
           onClick={() => editor.chain().focus().toggleBulletList().run()}
           isActive={editor.isActive('bulletList')}
-          title="Lista com marcadores"
+          title={t.tool_bullet}
         />
         <ToolBtn
           icon={ListOrdered}
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
           isActive={editor.isActive('orderedList')}
-          title="Lista numerada"
+          title={t.tool_ordered}
         />
       </div>
 
@@ -348,13 +404,13 @@ export function Toolbar({ editor }: ToolbarProps) {
           icon={LinkIcon}
           onClick={setLink}
           isActive={editor.isActive('link')}
-          title="Inserir Link"
+          title={t.tool_link}
         />
         <ToolBtn
           icon={ImageIcon}
           onClick={addImage}
           isActive={editor.isActive('image')}
-          title="Inserir Imagem / Mídia"
+          title={t.tool_image}
         />
 
         {/* Emoji Picker */}
@@ -362,24 +418,24 @@ export function Toolbar({ editor }: ToolbarProps) {
           <ToolBtn
             icon={Smile}
             onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}
-            title="Emoji"
+            title={t.tool_emoji}
           />
           {isEmojiPickerOpen && (
             <div
               className="absolute z-50 top-full mt-2 right-0 rounded-xl overflow-hidden"
               style={{
                 // Map page CSS vars → emoji-picker-react CSS vars
-                ['--epr-bg-color' as string]:                   'var(--bg-surface)',
-                ['--epr-category-label-bg-color' as string]:    'var(--bg-surface)',
-                ['--epr-search-input-bg-color' as string]:      'var(--bg-elevated)',
-                ['--epr-search-input-bg-color-active' as string]:'var(--bg-elevated)',
-                ['--epr-emoji-hover-color' as string]:          'var(--bg-elevated)',
-                ['--epr-text-color' as string]:                 'var(--text-primary)',
-                ['--epr-search-border-color' as string]:        'var(--border)',
+                ['--epr-bg-color' as string]: 'var(--bg-surface)',
+                ['--epr-category-label-bg-color' as string]: 'var(--bg-surface)',
+                ['--epr-search-input-bg-color' as string]: 'var(--bg-elevated)',
+                ['--epr-search-input-bg-color-active' as string]: 'var(--bg-elevated)',
+                ['--epr-emoji-hover-color' as string]: 'var(--bg-elevated)',
+                ['--epr-text-color' as string]: 'var(--text-primary)',
+                ['--epr-search-border-color' as string]: 'var(--border)',
                 ['--epr-category-icon-active-color' as string]: 'var(--accent)',
-                ['--epr-highlight-color' as string]:            'var(--accent)',
-                ['--epr-focus-bg-color' as string]:             'var(--bg-elevated)',
-                ['--epr-header-overlay-bg-color' as string]:    'var(--bg-surface)',
+                ['--epr-highlight-color' as string]: 'var(--accent)',
+                ['--epr-focus-bg-color' as string]: 'var(--bg-elevated)',
+                ['--epr-header-overlay-bg-color' as string]: 'var(--bg-surface)',
               }}
             >
               <EmojiPicker

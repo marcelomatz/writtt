@@ -215,13 +215,11 @@ func ListDocuments(filter string, limit int) ([]models.SearchResult, error) {
 	case "recent":
 		query = `SELECT d.id, d.type, d.title, d.tags, d.is_vault, COALESCE(SUBSTR(f.content, 1, 100), '') as snippet, d.updated_at 
 				 FROM documents d LEFT JOIN documents_fts f ON d.id = f.id 
-				 WHERE d.is_vault = 0
 				 ORDER BY d.updated_at DESC LIMIT ?`
 	case "all":
 		query = `SELECT d.id, d.type, d.title, d.tags, d.is_vault, COALESCE(SUBSTR(f.content, 1, 100), '') as snippet, d.updated_at 
 				 FROM documents d LEFT JOIN documents_fts f ON d.id = f.id 
-				 WHERE d.is_vault = 0
-				 ORDER BY d.title ASC LIMIT ?`
+				 ORDER BY d.updated_at DESC LIMIT ?`
 	case "protected":
 		query = `SELECT d.id, d.type, d.title, d.tags, d.is_vault, COALESCE(SUBSTR(f.content, 1, 100), '') as snippet, d.updated_at 
 				 FROM documents d LEFT JOIN documents_fts f ON d.id = f.id 
@@ -229,7 +227,6 @@ func ListDocuments(filter string, limit int) ([]models.SearchResult, error) {
 	default:
 		query = `SELECT d.id, d.type, d.title, d.tags, d.is_vault, COALESCE(SUBSTR(f.content, 1, 100), '') as snippet, d.updated_at 
 				 FROM documents d LEFT JOIN documents_fts f ON d.id = f.id 
-				 WHERE d.is_vault = 0
 				 ORDER BY d.updated_at DESC LIMIT ?`
 	}
 

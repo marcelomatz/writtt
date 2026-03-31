@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { models } from '../../wailsjs/go/models';
 import { ReadDocument, SaveDocument } from '../../wailsjs/go/main/App';
+import { models } from '../../wailsjs/go/models';
 
 interface EditorStats {
   words: number;
@@ -14,20 +14,31 @@ interface EditorState {
   stats: EditorStats;
   view: 'home' | 'editor' | 'settings';
   docsCount: number;
-  homeFilter: 'recent' | 'all' | 'backups' | 'protected';
+  homeFilter: 'all' | 'backups';
+
+  leftSidebarCollapsed: boolean;
+  rightSidebarCollapsed: boolean;
+  rightSidebarWidth: number;
+  sessionCreatedDocId: string | null;
 
   setTheme: (theme: 'light' | 'dark') => void;
   setStats: (stats: EditorStats) => void;
   setView: (view: 'home' | 'editor' | 'settings') => void;
   setDocsCount: (count: number) => void;
-  setHomeFilter: (filter: 'recent' | 'all' | 'backups' | 'protected') => void;
-  loadDocument: (id: string) => Promise<void>;
+  setHomeFilter: (filter: 'all' | 'backups') => void;
+  toggleLeftSidebar: () => void;
+  toggleRightSidebar: () => void;
+  setRightSidebarWidth: (width: number) => void;
+  loadDocument: (id: string, force?: boolean) => Promise<void>;
+  openDocument: (id: string) => Promise<void>;
   saveCurrentDocument: (content?: string, title?: string) => Promise<void>;
   updateDocumentTitle: (title: string) => void;
+  updateDocumentContent: (content: string) => void;
   createDocument: (title?: string) => void;
 }
 
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+let lastSaveTime = 0;
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   primaryDoc: null,
@@ -35,7 +46,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   stats: { words: 0, chars: 0, paragraphs: 0 },
   view: 'home',
   docsCount: 0,
-  homeFilter: 'recent',
+  homeFilter: 'all',
+  leftSidebarCollapsed: localStorage.getItem('writtt_left_collapsed') === 'true',
+  rightSidebarCollapsed: localStorage.getItem('writtt_right_collapsed') === 'true',
+  rightSidebarWidth: parseInt(localStorage.getItem('writtt_right_width') || '320', 10),
+  sessionCreatedDocId: null,
 
   setTheme: (theme) => {
     localStorage.setItem('writtt_theme', theme);
@@ -50,6 +65,36 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setHomeFilter: (filter) => set({ homeFilter: filter }),
 
+  toggleLeftSidebar: () =>
+    set((state) => {
+      const next = !state.leftSidebarCollapsed;
+      localStorage.setItem('writtt_left_collapsed', String(next));
+      return { leftSidebarCollapsed: next };
+    }),
+
+  toggleRightSidebar: () =>
+    set((state) => {
+      const next = !state.rightSidebarCollapsed;
+      localStorage.setItem('writtt_right_collapsed', String(next));
+      return { rightSidebarCollapsed: next };
+    }),
+
+  setRightSidebarWidth: (width) => {
+    localStorage.setItem('writtt_right_width', String(Math.max(200, Math.min(800, width))));
+    set({ rightSidebarWidth: width });
+  },
+
+  updateDocumentContent: (content: string) => {
+    const doc = get().primaryDoc;
+    if (!doc) return;
+    set({
+      primaryDoc: models.Document.createFrom({
+        ...doc,
+        content,
+      }),
+    });
+  },
+
   updateDocumentTitle: (title) => {
     const state = get();
     const doc = state.primaryDoc;
@@ -57,18 +102,41 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     const newDoc = models.Document.createFrom({
       ...doc,
-      frontmatter: { ...doc.frontmatter, title }
+      frontmatter: { ...doc.frontmatter, title },
     });
 
     set({ primaryDoc: newDoc });
 
     if (saveTimeout) clearTimeout(saveTimeout);
     saveTimeout = setTimeout(() => {
-      get().saveCurrentDocument(newDoc.content, title);
+      get().saveCurrentDocument(undefined, title);
     }, 1000);
   },
 
-  loadDocument: async (id: string) => {
+  openDocument: async (id: string) => {
+    const state = get();
+    if (state.primaryDoc?.frontmatter?.id === id) {
+      set({ view: 'editor' });
+      return;
+    }
+
+    // 1. Force save current document BEFORE changing it
+    if (state.primaryDoc) {
+      await state.saveCurrentDocument();
+    }
+
+    // 2. Clear primary doc (unmounts Editor.tsx to cancel closures/timeouts)
+    set({ primaryDoc: null });
+
+    // 3. Load the new one
+    await get().loadDocument(id, true);
+    set({ view: 'editor', sessionCreatedDocId: null });
+  },
+
+  loadDocument: async (id: string, force = false) => {
+    // If we literally just saved this file within 2 seconds, ignore the watcher event 
+    // to prevent circular reloading interrupts
+    if (!force && Date.now() - lastSaveTime < 2000) return;
     try {
       const doc = await ReadDocument(id);
       set({ primaryDoc: doc });
@@ -90,42 +158,66 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       content: finalContent,
       raw: '',
       frontmatter: {
+        ...(doc?.frontmatter || {}),
         id: doc?.frontmatter?.id || '',
         type: doc?.frontmatter?.type || 'markdown',
         title: finalTitle,
         created_at: doc?.frontmatter?.created_at || null,
-        updated_at: new Date().toISOString()
-      }
+        updated_at: new Date().toISOString(),
+        is_vault: true,
+      },
     };
 
     try {
+      lastSaveTime = Date.now();
       const newDoc = models.Document.createFrom(payload);
       const id = await SaveDocument(newDoc);
+      lastSaveTime = Date.now(); // Update after save completes too
 
-      const updatedDoc = models.Document.createFrom({
-        ...payload,
-        frontmatter: { ...payload.frontmatter, id }
-      });
+      const latestDoc = get().primaryDoc;
+      if (!latestDoc) return;
 
-      set({ primaryDoc: updatedDoc });
+      if (latestDoc.frontmatter.id !== id) {
+        const updatedDoc = models.Document.createFrom({
+          ...latestDoc,
+          frontmatter: { ...latestDoc.frontmatter, id },
+        });
+        
+        let newSessionDocId = get().sessionCreatedDocId;
+        if (newSessionDocId === 'pending') {
+          newSessionDocId = id;
+        }
+        
+        set({ primaryDoc: updatedDoc, sessionCreatedDocId: newSessionDocId });
+      }
     } catch (err) {
       console.error('Save error:', err);
     }
   },
 
   createDocument: async (title?: string) => {
+    // 1. Force save current document BEFORE changing it
+    const state = get();
+    if (state.primaryDoc) {
+      await state.saveCurrentDocument();
+    }
+
+    // 2. Clear primary doc (unmounts Editor.tsx to cancel closures/timeouts)
+    set({ primaryDoc: null });
+
     const newDoc = models.Document.createFrom({
       content: '',
       raw: '',
       frontmatter: models.Frontmatter.createFrom({
         id: '',
         title: title || 'Untitled',
-        type: 'markdown'
-      })
+        type: 'markdown',
+        is_vault: true,
+      }),
     });
 
-    set({ primaryDoc: newDoc });
+    set({ primaryDoc: newDoc, view: 'editor', sessionCreatedDocId: 'pending' });
 
     await get().saveCurrentDocument('', title || 'Untitled');
-  }
+  },
 }));

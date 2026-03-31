@@ -8,6 +8,7 @@ import (
 	"writtt/backend/models"
 	"writtt/backend/network"
 	"writtt/backend/storage"
+	"writtt/backend/tools"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -45,34 +46,8 @@ func (a *App) startup(ctx context.Context) {
 	})
 }
 
-const (
-	MaxFreeDocuments = 20
-	MaxFreeVault     = 3
-)
-
 // SaveDocument saves a document via the Wails bridge
 func (a *App) SaveDocument(doc models.Document) (string, error) {
-	// Check limits for NEW documents
-	if doc.Frontmatter.ID == "" {
-		count, _ := storage.GetDocumentCount(false)
-		if count >= MaxFreeDocuments {
-			return "", fmt.Errorf("limite de documentos do plano gratuito atingido (%d)", MaxFreeDocuments)
-		}
-	}
-
-	// Check Vault limit
-	if doc.Frontmatter.IsVault {
-		count, _ := storage.GetDocumentCount(true)
-		if count >= MaxFreeVault {
-			// If it's already in vault (updating), allow it.
-			// If it's moving TO vault, check limit.
-			existing, err := storage.ReadDisk(doc.Frontmatter.ID)
-			if err != nil || !existing.Frontmatter.IsVault {
-				return "", fmt.Errorf("limite do cofre gratuito atingido (%d)", MaxFreeVault)
-			}
-		}
-	}
-
 	log.Printf("Saving document: ID=%s, Title=%s\n", doc.Frontmatter.ID, doc.Frontmatter.Title)
 	id, err := storage.WriteDisk(doc)
 	if err != nil {
@@ -189,6 +164,17 @@ func (a *App) MergeToParent(parentID string, mergedContent string) error {
 // ScanLocalAI checks if a local LLM is alive
 func (a *App) ScanLocalAI() bool {
 	return network.ScanLocalAI()
+}
+
+// GetLocalModels fetches the list of available locally installed Ollama models.
+func (a *App) GetLocalModels() ([]string, error) {
+	return tools.GetLocalModels()
+}
+
+// AskAssistant queries the local AI assistant. 
+// Uses the provided context (e.g. current document text) and user prompt.
+func (a *App) AskAssistant(model, prompt, contextStr string) (string, error) {
+	return tools.AskAssistant(model, prompt, contextStr)
 }
 
 // SaveAttachment saves a base64 encoded file to disk and returns the relative URL

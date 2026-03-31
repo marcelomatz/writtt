@@ -1,74 +1,115 @@
+import { Bookmark, BookmarkX, LampDesk, RotateCcw, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { LampDesk, Bookmark, BookmarkX, RotateCcw, X } from 'lucide-react';
+import { useTranslation } from '../hooks/useTranslation';
 import { useEditorStore } from '../store/editorStore';
-
-/**
- * BrightnessControl — popover redesign
- *
- * Um pequeno botão (Sun) na barra de status abre um painel flutuante
- * contendo o slider de iluminação com toda a área necessária.
- *
- * Esquerda: reduz contraste/saturação/brilho → tom suave
- * Centro:   filtro neutro (nativo)
- * Direita:  realça contraste/saturação/brilho
- *
- * Favorito: um valor salvo por tema (light/dark), persistido em localStorage.
- */
 
 const NEUTRAL = 0.5;
 
-// ─── Aplicar filtro CSS ─────────────────────────────────────────────────────
 function applyIllumination(value: number) {
   const root = document.documentElement;
-  if (Math.abs(value - NEUTRAL) < 0.01) { root.style.filter = ''; return; }
+  if (Math.abs(value - NEUTRAL) < 0.01) {
+    root.style.filter = '';
+    return;
+  }
 
   if (value < NEUTRAL) {
     const t = (NEUTRAL - value) / NEUTRAL;
     root.style.filter = [
       `contrast(${(1 - t * 0.35).toFixed(3)})`,
       `saturate(${(1 - t * 0.55).toFixed(3)})`,
-      `brightness(${(1 - t * 0.30).toFixed(3)})`,
+      `brightness(${(1 - t * 0.3).toFixed(3)})`,
     ].join(' ');
   } else {
     const t = (value - NEUTRAL) / NEUTRAL;
     root.style.filter = [
       `contrast(${(1 + t * 0.12).toFixed(3)})`,
-      `saturate(${(1 + t * 0.10).toFixed(3)})`,
+      `saturate(${(1 + t * 0.1).toFixed(3)})`,
       `brightness(${(1 + t * 0.05).toFixed(3)})`,
     ].join(' ');
   }
 }
 
-// ─── Persistência de favoritos ──────────────────────────────────────────────
 const FAV_KEY = (theme: 'light' | 'dark') => `writtt_illum_fav_${theme}`;
-const loadFav  = (t: 'light' | 'dark') => { const r = localStorage.getItem(FAV_KEY(t)); return r ? parseFloat(r) : null; };
-const saveFav  = (t: 'light' | 'dark', v: number) => localStorage.setItem(FAV_KEY(t), v.toFixed(4));
+const loadFav = (t: 'light' | 'dark') => {
+  const r = localStorage.getItem(FAV_KEY(t));
+  return r ? parseFloat(r) : null;
+};
+const saveFav = (t: 'light' | 'dark', v: number) => localStorage.setItem(FAV_KEY(t), v.toFixed(4));
 const clearFav = (t: 'light' | 'dark') => localStorage.removeItem(FAV_KEY(t));
 
-// ─── Helpers de label ────────────────────────────────────────────────────────
-function label(v: number) {
-  if (Math.abs(v - NEUTRAL) < 0.01) return 'Neutro';
-  const pct = Math.round(Math.abs(v - NEUTRAL) / NEUTRAL * 100);
-  return v < NEUTRAL ? `−${pct}% (suave)` : `+${pct}% (vívido)`;
+const dict = {
+  pt: {
+    neutral: 'Neutro',
+    soft: 'suave',
+    vivid: 'vívido',
+    adjust: 'Ajustar iluminação',
+    illumination: 'Iluminação',
+    close: 'Fechar',
+    reset: 'neutro',
+    reset_tooltip: 'Resetar para neutro (R)',
+    soft_label: 'Suave',
+    vivid_label: 'Vívido',
+    favorite: 'Favorito',
+    fav_saved: '✓ Favorito salvo',
+    no_fav: 'Nenhum favorito salvo',
+    restore: 'Restaurar',
+    restore_tooltip: 'Restaurar favorito',
+    remove_tooltip: 'Remover favorito',
+    save_current: 'Salvar atual',
+    save_tooltip: 'Salvar iluminação atual como favorita',
+    shortcut_adjust: '← → ajustar',
+    shortcut_step: 'shift ± passo grande',
+    shortcut_reset: 'R neutro',
+    aria_slider: 'Iluminação da tela',
+  },
+  en: {
+    neutral: 'Neutral',
+    soft: 'soft',
+    vivid: 'vivid',
+    adjust: 'Adjust brightness',
+    illumination: 'Brightness',
+    close: 'Close',
+    reset: 'neutral',
+    reset_tooltip: 'Reset to neutral (R)',
+    soft_label: 'Soft',
+    vivid_label: 'Vivid',
+    favorite: 'Favorite',
+    fav_saved: '✓ Favorite saved',
+    no_fav: 'No favorite saved',
+    restore: 'Restore',
+    restore_tooltip: 'Restore favorite',
+    remove_tooltip: 'Remove favorite',
+    save_current: 'Save current',
+    save_tooltip: 'Save current brightness as favorite',
+    shortcut_adjust: '← → adjust',
+    shortcut_step: 'shift ± big step',
+    shortcut_reset: 'R neutral',
+    aria_slider: 'Screen brightness',
+  },
+};
+
+function formatLabel(v: number, t: typeof dict.pt) {
+  if (Math.abs(v - NEUTRAL) < 0.01) return t.neutral;
+  const pct = Math.round((Math.abs(v - NEUTRAL) / NEUTRAL) * 100);
+  return v < NEUTRAL ? `−${pct}% (${t.soft})` : `+${pct}% (${t.vivid})`;
 }
 
-// ────────────────────────────────────────────────────────────────────────────
 export function BrightnessControl() {
+  const t = useTranslation(dict);
   const theme = useEditorStore((s) => s.theme);
 
-  const [open, setOpen]           = useState(false);
-  const [illumination, setIllum]  = useState(() => loadFav(theme) ?? NEUTRAL);
-  const [dragging, setDragging]   = useState(false);
-  const [fav, setFav]             = useState<number | null>(() => loadFav(theme));
-  const [savedFlash, setSaved]    = useState(false);
+  const [open, setOpen] = useState(false);
+  const [illumination, setIllum] = useState(() => loadFav(theme) ?? NEUTRAL);
+  const [dragging, setDragging] = useState(false);
+  const [fav, setFav] = useState<number | null>(() => loadFav(theme));
+  const [savedFlash, setSaved] = useState(false);
 
-  const panelRef  = useRef<HTMLDivElement>(null);
-  const trackRef  = useRef<HTMLDivElement>(null);
-  const startX    = useRef(0);
-  const startVal  = useRef(NEUTRAL);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const startX = useRef(0);
+  const startVal = useRef(NEUTRAL);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Sincronizar com mudança de tema ────────────────────────────────────────
   useEffect(() => {
     const saved = loadFav(theme);
     setFav(saved);
@@ -77,10 +118,11 @@ export function BrightnessControl() {
     applyIllumination(initial);
   }, [theme]);
 
-  // ── Fechar com Escape ou clique fora ──────────────────────────────────────
   useEffect(() => {
     if (!open) return;
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
     const handleClick = (e: MouseEvent) => {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) setOpen(false);
     };
@@ -92,47 +134,66 @@ export function BrightnessControl() {
     };
   }, [open]);
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
-  const clamp  = (v: number) => Math.max(0, Math.min(1, v));
+  const clamp = (v: number) => Math.max(0, Math.min(1, v));
   const update = useCallback((v: number) => {
     const c = clamp(v);
     setIllum(c);
     applyIllumination(c);
   }, []);
 
-  // ── Arrastar o thumb ──────────────────────────────────────────────────────
-  const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
-    // Click-to-position: set value directly on first click
-    const rect = e.currentTarget.getBoundingClientRect();
-    const clickVal = clamp((e.clientX - rect.left) / rect.width);
-    update(clickVal);
-    startX.current   = e.clientX;
-    startVal.current = clickVal;
-    setDragging(true);
-  }, [update]);
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickVal = clamp((e.clientX - rect.left) / rect.width);
+      update(clickVal);
+      startX.current = e.clientX;
+      startVal.current = clickVal;
+      setDragging(true);
+    },
+    [update]
+  );
 
-  const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragging) return;
-    const rect = trackRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const clickVal = clamp((e.clientX - rect.left) / rect.width);
-    update(clickVal);
-  }, [dragging, update]);
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!dragging) return;
+      const rect = trackRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const clickVal = clamp((e.clientX - rect.left) / rect.width);
+      update(clickVal);
+    },
+    [dragging, update]
+  );
 
   const onPointerUp = useCallback(() => setDragging(false), []);
 
-  // ── Teclado ───────────────────────────────────────────────────────────────
-  const onKeyDown = useCallback((e: React.KeyboardEvent) => {
-    const step = e.shiftKey ? 0.10 : 0.02;
-    if (e.key === 'ArrowRight') { e.preventDefault(); update(illumination + step); }
-    if (e.key === 'ArrowLeft')  { e.preventDefault(); update(illumination - step); }
-    if (e.key === 'Home')       { e.preventDefault(); update(0); }
-    if (e.key === 'End')        { e.preventDefault(); update(1); }
-    if (e.key === 'r' || e.key === 'R') { e.preventDefault(); update(NEUTRAL); }
-  }, [illumination, update]);
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const step = e.shiftKey ? 0.1 : 0.02;
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        update(illumination + step);
+      }
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        update(illumination - step);
+      }
+      if (e.key === 'Home') {
+        e.preventDefault();
+        update(0);
+      }
+      if (e.key === 'End') {
+        e.preventDefault();
+        update(1);
+      }
+      if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        update(NEUTRAL);
+      }
+    },
+    [illumination, update]
+  );
 
-  // ── Favorito ─────────────────────────────────────────────────────────────
   const handleSaveFav = useCallback(() => {
     saveFav(theme, illumination);
     setFav(illumination);
@@ -150,31 +211,27 @@ export function BrightnessControl() {
     setFav(null);
   }, [theme]);
 
-  // ── Reset ─────────────────────────────────────────────────────────────────
   const handleReset = useCallback(() => update(NEUTRAL), [update]);
 
-  // ── Derivações ────────────────────────────────────────────────────────────
   const isBelowNeutral = illumination < NEUTRAL - 0.01;
   const isAboveNeutral = illumination > NEUTRAL + 0.01;
-  const isNeutral      = !isBelowNeutral && !isAboveNeutral;
-  const thumbPct       = illumination * 100;
-  const trackColor     = isBelowNeutral ? 'var(--text-secondary)' : 'var(--accent)';
-  const favPct         = fav !== null ? fav * 100 : null;
+  const isNeutral = !isBelowNeutral && !isAboveNeutral;
+  const thumbPct = illumination * 100;
+  const trackColor = isBelowNeutral ? 'var(--text-secondary)' : 'var(--accent)';
+  const favPct = fav !== null ? fav * 100 : null;
 
-  // Ícone do trigger varia se não está neutro
   const triggerActive = !isNeutral;
 
   return (
     <div className="relative" ref={panelRef}>
-
-      {/* ── Trigger button ── */}
       <button
-        onClick={() => setOpen(o => !o)}
-        title="Ajustar iluminação"
+        onClick={() => setOpen((o) => !o)}
+        title={t.adjust}
         className="flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-200"
         style={{
           background: open || triggerActive ? 'var(--bg-elevated)' : 'none',
-          border: open || triggerActive ? '1px solid var(--border-subtle)' : '1px solid transparent',
+          border:
+            open || triggerActive ? '1px solid var(--border-subtle)' : '1px solid transparent',
           color: triggerActive ? 'var(--accent)' : 'var(--text-muted)',
           cursor: 'pointer',
         }}
@@ -182,7 +239,6 @@ export function BrightnessControl() {
         <LampDesk className="w-3.5 h-3.5" strokeWidth={triggerActive ? 2 : 1.75} />
       </button>
 
-      {/* ── Popover panel ── */}
       {open && (
         <div
           className="absolute z-50 rounded-2xl"
@@ -196,43 +252,68 @@ export function BrightnessControl() {
             boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
           }}
         >
-          {/* Header */}
           <div className="flex items-center justify-between mb-5">
-            <span style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.07em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Iluminação
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 600,
+                letterSpacing: '0.07em',
+                color: 'var(--text-muted)',
+                textTransform: 'uppercase',
+              }}
+            >
+              {t.illumination}
             </span>
             <button
               onClick={() => setOpen(false)}
+              title={t.close}
               className="flex items-center justify-center w-6 h-6 rounded-md"
-              style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', opacity: 0.5 }}
+              style={{
+                color: 'var(--text-muted)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                opacity: 0.5,
+              }}
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Current value label */}
           <div className="flex items-center justify-between mb-4">
-            <span style={{ fontSize: '15px', fontWeight: 600, color: isNeutral ? 'var(--text-secondary)' : 'var(--text-primary)' }}>
-              {label(illumination)}
+            <span
+              style={{
+                fontSize: '15px',
+                fontWeight: 600,
+                color: isNeutral ? 'var(--text-secondary)' : 'var(--text-primary)',
+              }}
+            >
+              {formatLabel(illumination, t)}
             </span>
             {!isNeutral && (
               <button
                 onClick={handleReset}
-                title="Resetar para neutro (R)"
+                title={t.reset_tooltip}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all duration-150"
-                style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', cursor: 'pointer', letterSpacing: '0.03em' }}
+                style={{
+                  fontSize: '11px',
+                  color: 'var(--text-muted)',
+                  background: 'var(--bg-surface)',
+                  border: '1px solid var(--border-subtle)',
+                  cursor: 'pointer',
+                  letterSpacing: '0.03em',
+                }}
               >
                 <RotateCcw className="w-3 h-3" />
-                neutro
+                {t.reset}
               </button>
             )}
           </div>
 
-          {/* ── Slider track ── */}
           <div
             ref={trackRef}
             role="slider"
-            aria-label="Iluminação da tela"
+            aria-label={t.aria_slider}
             aria-valuenow={Math.round(illumination * 100)}
             aria-valuemin={0}
             aria-valuemax={100}
@@ -249,7 +330,6 @@ export function BrightnessControl() {
               touchAction: 'none',
             }}
           >
-            {/* Preenchimento */}
             <div
               className="absolute inset-y-0 left-0 rounded-full pointer-events-none"
               style={{
@@ -259,19 +339,17 @@ export function BrightnessControl() {
                 transition: dragging ? 'none' : 'width 60ms ease-out',
               }}
             />
-
-            {/* Marcador neutro */}
             <div
               className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full pointer-events-none"
               style={{
                 left: '50%',
                 width: '2px',
                 height: '14px',
-                backgroundColor: isNeutral ? 'var(--text-muted)' : 'color-mix(in srgb, var(--text-muted) 40%, transparent)',
+                backgroundColor: isNeutral
+                  ? 'var(--text-muted)'
+                  : 'color-mix(in srgb, var(--text-muted) 40%, transparent)',
               }}
             />
-
-            {/* Marcador de favorito */}
             {favPct !== null && (
               <div
                 className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 pointer-events-none"
@@ -285,8 +363,6 @@ export function BrightnessControl() {
                 }}
               />
             )}
-
-            {/* Thumb */}
             <div
               className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full pointer-events-none"
               style={{
@@ -303,39 +379,57 @@ export function BrightnessControl() {
             />
           </div>
 
-          {/* Labels extremos */}
-          <div className="flex justify-between mt-2 mb-5" style={{ fontSize: '11px', color: 'var(--text-muted)', opacity: 0.6 }}>
-            <span>Suave</span>
-            <span>Vívido</span>
+          <div
+            className="flex justify-between mt-2 mb-5"
+            style={{ fontSize: '11px', color: 'var(--text-muted)', opacity: 0.6 }}
+          >
+            <span>{t.soft_label}</span>
+            <span>{t.vivid_label}</span>
           </div>
 
-          {/* ── Divisor ── */}
-          <div style={{ height: '1px', backgroundColor: 'var(--border-subtle)', marginBottom: '16px' }} />
+          <div
+            style={{ height: '1px', backgroundColor: 'var(--border-subtle)', marginBottom: '16px' }}
+          />
 
-          {/* ── Favorito section header ── */}
           <div className="flex items-center gap-2 mb-3">
             <Bookmark
               className="w-3.5 h-3.5 flex-shrink-0"
-              style={{ color: fav !== null ? 'var(--accent)' : 'var(--text-muted)', opacity: fav !== null ? 0.8 : 0.45 }}
+              style={{
+                color: fav !== null ? 'var(--accent)' : 'var(--text-muted)',
+                opacity: fav !== null ? 0.8 : 0.45,
+              }}
               strokeWidth={1.75}
               fill={fav !== null ? 'var(--accent)' : 'none'}
             />
-            <span style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              Favorito
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 600,
+                letterSpacing: '0.04em',
+                color: 'var(--text-muted)',
+                textTransform: 'uppercase',
+              }}
+            >
+              {t.favorite}
             </span>
           </div>
 
-          {/* ── Favorito controls ── */}
           <div
             className="flex items-center justify-between rounded-xl px-3 py-2.5"
             style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}
           >
-            <span style={{ fontSize: '13px', color: savedFlash ? 'var(--accent)' : fav !== null ? 'var(--text-primary)' : 'var(--text-muted)', fontWeight: fav !== null ? 500 : 400 }}>
-              {savedFlash
-                ? '✓ Favorito salvo'
-                : fav !== null
-                ? label(fav)
-                : 'Nenhum favorito salvo'}
+            <span
+              style={{
+                fontSize: '13px',
+                color: savedFlash
+                  ? 'var(--accent)'
+                  : fav !== null
+                    ? 'var(--text-primary)'
+                    : 'var(--text-muted)',
+                fontWeight: fav !== null ? 500 : 400,
+              }}
+            >
+              {savedFlash ? t.fav_saved : fav !== null ? formatLabel(fav, t) : t.no_fav}
             </span>
 
             <div className="flex items-center gap-1.5">
@@ -343,17 +437,29 @@ export function BrightnessControl() {
                 <>
                   <button
                     onClick={handleRestoreFav}
-                    title="Restaurar favorito"
+                    title={t.restore_tooltip}
                     className="px-2.5 py-1 rounded-lg transition-all duration-150"
-                    style={{ fontSize: '11px', color: 'var(--accent)', background: 'color-mix(in srgb, var(--accent) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)', cursor: 'pointer' }}
+                    style={{
+                      fontSize: '11px',
+                      color: 'var(--accent)',
+                      background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                      border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
+                      cursor: 'pointer',
+                    }}
                   >
-                    Restaurar
+                    {t.restore}
                   </button>
                   <button
                     onClick={handleClearFav}
-                    title="Remover favorito"
+                    title={t.remove_tooltip}
                     className="flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-150"
-                    style={{ color: 'var(--text-muted)', background: 'none', border: '1px solid var(--border-subtle)', cursor: 'pointer', opacity: 0.55 }}
+                    style={{
+                      color: 'var(--text-muted)',
+                      background: 'none',
+                      border: '1px solid var(--border-subtle)',
+                      cursor: 'pointer',
+                      opacity: 0.55,
+                    }}
                   >
                     <BookmarkX className="w-3.5 h-3.5" />
                   </button>
@@ -363,21 +469,35 @@ export function BrightnessControl() {
               {fav === null && (
                 <button
                   onClick={handleSaveFav}
-                  title="Salvar iluminação atual como favorita"
+                  title={t.save_tooltip}
                   className="px-2.5 py-1 rounded-lg transition-all duration-150"
-                  style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'color-mix(in srgb, var(--text-muted) 8%, transparent)', border: '1px solid var(--border-subtle)', cursor: 'pointer', letterSpacing: '0.02em' }}
+                  style={{
+                    fontSize: '11px',
+                    color: 'var(--text-muted)',
+                    background: 'color-mix(in srgb, var(--text-muted) 8%, transparent)',
+                    border: '1px solid var(--border-subtle)',
+                    cursor: 'pointer',
+                    letterSpacing: '0.02em',
+                  }}
                 >
-                  Salvar atual
+                  {t.save_current}
                 </button>
               )}
             </div>
           </div>
 
-          {/* Atalhos */}
-          <div className="mt-4 flex gap-4" style={{ fontSize: '10px', color: 'var(--text-muted)', opacity: 0.4, letterSpacing: '0.03em' }}>
-            <span>← → ajustar</span>
-            <span>shift ± passo grande</span>
-            <span>R neutro</span>
+          <div
+            className="mt-4 flex gap-4"
+            style={{
+              fontSize: '10px',
+              color: 'var(--text-muted)',
+              opacity: 0.4,
+              letterSpacing: '0.03em',
+            }}
+          >
+            <span>{t.shortcut_adjust}</span>
+            <span>{t.shortcut_step}</span>
+            <span>{t.shortcut_reset}</span>
           </div>
         </div>
       )}

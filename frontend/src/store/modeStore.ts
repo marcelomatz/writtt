@@ -2,4 +2,7 @@
 // All mode-switching UI has been removed; this file may be deleted in a future pass.
 export type EditorMode = 'standard';
 
-export const useModeStore = () => ({ currentMode: 'standard' as EditorMode, setMode: (_m: EditorMode) => {} });
+export const useModeStore = () => ({
+  currentMode: 'standard' as EditorMode,
+  setMode: (_m: EditorMode) => {},
+});

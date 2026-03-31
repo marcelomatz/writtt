@@ -1,11 +1,47 @@
-import { useState, useRef, useEffect, KeyboardEvent } from 'react';
+import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { UnlockVault, UnlockVaultWithPIN } from '../../wailsjs/go/main/App';
-import { useSecurityStore } from '../store/securityStore';
+import { useTranslation } from '../hooks/useTranslation';
 import { useEditorStore } from '../store/editorStore';
+import { useSecurityStore } from '../store/securityStore';
 
 interface VaultUnlockOverlayProps {
   pane?: 'primary';
 }
+
+const dict = {
+  pt: {
+    err_incorrect_pin: 'PIN incorreto',
+    err_incorrect_pwd: 'Senha incorreta',
+    err_verify: 'Erro ao verificar',
+    title_vault: 'Documento do Cofre',
+    desc_pin_1: 'Este documento está criptografado.',
+    desc_pin_2: 'Digite o PIN do cofre para acessar.',
+    desc_pwd_1: 'Este documento está criptografado.',
+    desc_pwd_2: 'Digite sua senha para acessar o conteúdo.',
+    placeholder_pin: 'PIN (4–8 dígitos)',
+    placeholder_pwd: 'Senha do cofre',
+    btn_verifying: 'Verificando…',
+    btn_unlock_pin: 'Desbloquear com PIN',
+    btn_unlock_pwd: 'Desbloquear Cofre',
+    hint_memory: 'O conteúdo descriptografado só fica em memória',
+  },
+  en: {
+    err_incorrect_pin: 'Incorrect PIN',
+    err_incorrect_pwd: 'Incorrect password',
+    err_verify: 'Verification error',
+    title_vault: 'Vault Document',
+    desc_pin_1: 'This document is encrypted.',
+    desc_pin_2: 'Enter the vault PIN to access.',
+    desc_pwd_1: 'This document is encrypted.',
+    desc_pwd_2: 'Enter your password to access the content.',
+    placeholder_pin: 'PIN (4–8 digits)',
+    placeholder_pwd: 'Vault password',
+    btn_verifying: 'Verifying…',
+    btn_unlock_pin: 'Unlock with PIN',
+    btn_unlock_pwd: 'Unlock Vault',
+    hint_memory: 'The decrypted content remains only in memory',
+  },
+};
 
 /**
  * VaultUnlockOverlay — shown inside the editor panel when
@@ -18,6 +54,7 @@ export function VaultUnlockOverlay({ pane: _pane }: VaultUnlockOverlayProps) {
   const { setVaultUnlocked, vaultPINEnabled } = useSecurityStore();
   const { primaryDoc, loadDocument } = useEditorStore();
   const doc = primaryDoc;
+  const t = useTranslation(dict);
 
   const [value, setValue] = useState('');
   const [showPw, setShowPw] = useState(false);
@@ -26,16 +63,16 @@ export function VaultUnlockOverlay({ pane: _pane }: VaultUnlockOverlayProps) {
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { inputRef.current?.focus(); }, []);
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   async function handleUnlock() {
     if (!value) return;
     setLoading(true);
     setError('');
     try {
-      const ok = vaultPINEnabled
-        ? await UnlockVaultWithPIN(value)
-        : await UnlockVault(value);
+      const ok = vaultPINEnabled ? await UnlockVaultWithPIN(value) : await UnlockVault(value);
 
       if (ok) {
         setVaultUnlocked(true);
@@ -43,10 +80,10 @@ export function VaultUnlockOverlay({ pane: _pane }: VaultUnlockOverlayProps) {
           await loadDocument(doc.frontmatter.id);
         }
       } else {
-        triggerError(vaultPINEnabled ? 'PIN incorreto' : 'Senha incorreta');
+        triggerError(vaultPINEnabled ? t.err_incorrect_pin : t.err_incorrect_pwd);
       }
     } catch {
-      triggerError('Erro ao verificar');
+      triggerError(t.err_verify);
     } finally {
       setLoading(false);
     }
@@ -90,10 +127,28 @@ export function VaultUnlockOverlay({ pane: _pane }: VaultUnlockOverlayProps) {
           className="relative z-10 w-16 h-16 rounded-2xl flex items-center justify-center"
           style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}
         >
-          <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" style={{ color: 'var(--accent)' }}>
-            <rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            <circle cx="12" cy="16" r="1.5" fill="currentColor"/>
+          <svg
+            className="w-8 h-8"
+            viewBox="0 0 24 24"
+            fill="none"
+            style={{ color: 'var(--accent)' }}
+          >
+            <rect
+              x="3"
+              y="11"
+              width="18"
+              height="11"
+              rx="2"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            />
+            <path
+              d="M7 11V7a5 5 0 0 1 10 0v4"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+            <circle cx="12" cy="16" r="1.5" fill="currentColor" />
           </svg>
         </div>
       </div>
@@ -104,20 +159,23 @@ export function VaultUnlockOverlay({ pane: _pane }: VaultUnlockOverlayProps) {
         style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}
       >
         <div className="text-center">
-          <p
-            className="text-base font-semibold mb-1"
-            style={{ color: 'var(--text-primary)' }}
-          >
-            Documento do Cofre
+          <p className="text-base font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
+            {t.title_vault}
           </p>
-          <p
-            className="text-xs leading-relaxed"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            {isPIN
-              ? <>Este documento está criptografado.<br />Digite o PIN do cofre para acessar.</>
-              : <>Este documento está criptografado.<br />Digite sua senha para acessar o conteúdo.</>
-            }
+          <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+            {isPIN ? (
+              <>
+                {t.desc_pin_1}
+                <br />
+                {t.desc_pin_2}
+              </>
+            ) : (
+              <>
+                {t.desc_pwd_1}
+                <br />
+                {t.desc_pwd_2}
+              </>
+            )}
           </p>
         </div>
 
@@ -125,12 +183,15 @@ export function VaultUnlockOverlay({ pane: _pane }: VaultUnlockOverlayProps) {
         <div className="relative">
           <input
             ref={inputRef}
-            type={isPIN ? (showPw ? 'text' : 'password') : (showPw ? 'text' : 'password')}
+            type={isPIN ? (showPw ? 'text' : 'password') : showPw ? 'text' : 'password'}
             inputMode={isPIN ? 'numeric' : 'text'}
             maxLength={isPIN ? 8 : undefined}
-            placeholder={isPIN ? 'PIN (4–8 dígitos)' : 'Senha do cofre'}
+            placeholder={isPIN ? t.placeholder_pin : t.placeholder_pwd}
             value={value}
-            onChange={(e) => { setValue(e.target.value); setError(''); }}
+            onChange={(e) => {
+              setValue(e.target.value);
+              setError('');
+            }}
             onKeyDown={handleKeyDown}
             className="w-full rounded-xl px-4 py-3 pr-11 text-sm outline-none transition-all"
             style={{
@@ -149,15 +210,29 @@ export function VaultUnlockOverlay({ pane: _pane }: VaultUnlockOverlayProps) {
             tabIndex={-1}
           >
             {showPw ? (
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                <line x1="1" y1="1" x2="23" y2="23"/>
+              <svg
+                className="w-4 h-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              >
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                <line x1="1" y1="1" x2="23" y2="23" />
               </svg>
             ) : (
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                <circle cx="12" cy="12" r="3"/>
+              <svg
+                className="w-4 h-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              >
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
               </svg>
             )}
           </button>
@@ -183,18 +258,26 @@ export function VaultUnlockOverlay({ pane: _pane }: VaultUnlockOverlayProps) {
         >
           {loading ? (
             <>
-              <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+              <svg
+                className="w-4 h-4 animate-spin"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
               </svg>
-              Verificando…
+              {t.btn_verifying}
             </>
+          ) : isPIN ? (
+            t.btn_unlock_pin
           ) : (
-            isPIN ? 'Desbloquear com PIN' : 'Desbloquear Cofre'
+            t.btn_unlock_pwd
           )}
         </button>
 
         <p className="text-[10px] text-center" style={{ color: 'var(--text-muted)' }}>
-          O conteúdo descriptografado só fica em memória
+          {t.hint_memory}
         </p>
       </div>
 

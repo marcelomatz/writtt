@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState, KeyboardEvent } from 'react';
+import { FileText, Plus, Trash2, X } from 'lucide-react';
+import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
+import { DeleteDocument, ListDocuments, UpdateMetadata } from '../../wailsjs/go/main/App';
+import type { models } from '../../wailsjs/go/models';
+import { useTranslation } from '../hooks/useTranslation';
 import { useEditorStore } from '../store/editorStore';
-import { ListDocuments, UpdateMetadata, UnlockVault, UnlockVaultWithPIN, DeleteDocument } from '../../wailsjs/go/main/App';
-import { models } from '../../wailsjs/go/models';
-import { FileText, Eye, EyeOff, Lock, Plus, Shield, ShieldOff, X, Trash2 } from 'lucide-react';
-import { useSecurityStore } from '../store/securityStore';
 import { useModalStore } from '../store/modalStore';
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -31,6 +30,33 @@ function getTagColorClass(tag: string) {
   return tagColors[Math.abs(hash) % tagColors.length];
 }
 
+const dict = {
+  pt: {
+    remove_tag: 'Remover tag',
+    new_tag_placeholder: 'NOVA TAG',
+    add_tag: 'Adicionar tag',
+    delete_doc_title: 'Deletar documento',
+    delete_doc_msg: '"{title}" será deletado permanentemente. Esta ação não pode ser desfeita.',
+    updated_at: 'Atualizado em',
+    workspace_sec: 'Workspace Secundizado',
+    hero_title: 'Seus documentos.\nÁrea restrita.',
+    new_doc: 'Novo Documento',
+    new_doc_desc: 'Suas palavras são suas. Completamente.',
+  },
+  en: {
+    remove_tag: 'Remove tag',
+    new_tag_placeholder: 'NEW TAG',
+    add_tag: 'Add tag',
+    delete_doc_title: 'Delete document',
+    delete_doc_msg: '"{title}" will be permanently deleted. This action cannot be undone.',
+    updated_at: 'Updated at',
+    workspace_sec: 'Secured Workspace',
+    hero_title: 'Your documents.\nRestricted area.',
+    new_doc: 'New Document',
+    new_doc_desc: 'Your words are yours. Completely.',
+  },
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TagManager (inalterado)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -38,6 +64,7 @@ function getTagColorClass(tag: string) {
 function TagManager({ doc, onRefresh }: { doc: models.SearchResult; onRefresh: () => void }) {
   const [isEditing, setIsEditing] = useState(false);
   const [newTag, setNewTag] = useState('');
+  const t = useTranslation(dict);
 
   const handleAddTag = async (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -60,7 +87,11 @@ function TagManager({ doc, onRefresh }: { doc: models.SearchResult; onRefresh: (
 
   const handleRemoveTag = async (e: React.MouseEvent, tagToRemove: string) => {
     e.stopPropagation();
-    await UpdateMetadata(doc.id, (doc.tags || []).filter((t) => t !== tagToRemove), doc.is_vault).catch(console.error);
+    await UpdateMetadata(
+      doc.id,
+      (doc.tags || []).filter((t) => t !== tagToRemove),
+      doc.is_vault
+    ).catch(console.error);
     onRefresh();
   };
 
@@ -75,7 +106,7 @@ function TagManager({ doc, onRefresh }: { doc: models.SearchResult; onRefresh: (
           <button
             onClick={(e) => handleRemoveTag(e, tag)}
             className="hidden group-hover/tag:flex items-center justify-center hover:bg-black/10 dark:hover:bg-white/10 rounded-full w-3 h-3"
-            title="Remover tag"
+            title={t.remove_tag}
           >
             <X className="w-2.5 h-2.5" />
           </button>
@@ -88,180 +119,27 @@ function TagManager({ doc, onRefresh }: { doc: models.SearchResult; onRefresh: (
           value={newTag}
           onChange={(e) => setNewTag(e.target.value)}
           onKeyDown={handleAddTag}
-          onBlur={() => { setIsEditing(false); setNewTag(''); }}
+          onBlur={() => {
+            setIsEditing(false);
+            setNewTag('');
+          }}
           autoFocus
           className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-md bg-white dark:bg-slate-800 border border-blue-500 outline-none w-20 text-slate-800 dark:text-slate-200"
-          placeholder="NOVA TAG"
+          placeholder={t.new_tag_placeholder}
         />
       ) : (
         <button
-          onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsEditing(true);
+          }}
           className="px-1.5 py-0.5 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
-          title="Adicionar tag"
+          title={t.add_tag}
         >
           <Plus className="w-3 h-3" strokeWidth={2} />
         </button>
       )}
     </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// VaultPasswordModal — mini modal inline para confirmar remoção do cofre
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface VaultPasswordModalProps {
-  docTitle: string;
-  onConfirm: (password: string) => Promise<void>;
-  onCancel: () => void;
-  mode?: 'remove' | 'open';
-  isPIN?: boolean; // true = campo PIN numérico; false/undefined = senha
-}
-
-function VaultPasswordModal({ docTitle, onConfirm, onCancel, mode = 'remove', isPIN = false }: VaultPasswordModalProps) {
-  const [password, setPassword] = useState('');
-  const [showPw, setShowPw] = useState(false);
-  const [error, setError] = useState('');
-  const [shake, setShake] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => { inputRef.current?.focus(); }, []);
-
-  async function handleConfirm() {
-    if (!password) return;
-    setLoading(true);
-    setError('');
-    try {
-      await onConfirm(password);
-    } catch (err: any) {
-      setError(isPIN ? 'PIN incorreto' : 'Senha incorreta');
-      setShake(true);
-      setPassword('');
-      setTimeout(() => setShake(false), 620);
-      inputRef.current?.focus();
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
-        onClick={onCancel}
-      />
-
-      {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-        <div
-          className={`pointer-events-auto w-80 rounded-2xl p-6 flex flex-col gap-4 shadow-2xl transition-all ${shake ? 'animate-[shake_0.6s_ease]' : ''}`}
-          style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
-        >
-          {/* Icon */}
-          <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}
-            >
-              {mode === 'open'
-                ? <Lock className="w-5 h-5" style={{ color: 'var(--accent)' }} strokeWidth={1.5} />
-                : <ShieldOff className="w-5 h-5" style={{ color: 'var(--accent)' }} strokeWidth={1.5} />}
-            </div>
-            <div>
-              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                {mode === 'open' ? 'Abrir documento do Cofre' : 'Remover do Cofre'}
-              </p>
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                "{docTitle}"
-              </p>
-            </div>
-          </div>
-
-          <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-            {mode === 'open'
-              ? 'Este documento está protegido. Digite a senha do cofre para abrir.'
-              : 'Para remover este documento do cofre, confirme sua senha. O conteúdo voltará para o workspace sem criptografia.'}
-          </p>
-
-          {/* Password / PIN field */}
-          <div className="relative">
-            <input
-              ref={inputRef}
-              type={showPw ? 'text' : 'password'}
-              inputMode={isPIN ? 'numeric' : 'text'}
-              maxLength={isPIN ? 8 : undefined}
-              placeholder={isPIN ? 'PIN (4–8 dígitos)' : 'Senha do cofre'}
-              value={password}
-              onChange={(e) => { setPassword(isPIN ? e.target.value.replace(/\D/g, '').slice(0, 8) : e.target.value); setError(''); }}
-              onKeyDown={(e) => e.key === 'Enter' && handleConfirm()}
-              className="w-full rounded-xl px-4 py-2.5 pr-10 text-sm outline-none transition-all"
-              style={{
-                backgroundColor: 'var(--bg-base)',
-                color: 'var(--text-primary)',
-                border: `1px solid ${error ? 'var(--color-danger, #ef4444)' : 'var(--border-strong)'}`,
-                letterSpacing: isPIN ? '0.3em' : undefined,
-                textAlign: isPIN ? 'center' : undefined,
-              }}
-            />
-            <button
-              type="button"
-              tabIndex={-1}
-              onClick={() => setShowPw((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 opacity-40 hover:opacity-100 transition-opacity"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </button>
-          </div>
-
-          {error && (
-            <p className="text-xs text-center" style={{ color: 'var(--color-danger, #ef4444)' }}>
-              {error}
-            </p>
-          )}
-
-          <div className="flex gap-2">
-            <button
-              onClick={onCancel}
-              className="flex-1 py-2 rounded-xl text-sm transition-colors"
-              style={{
-                backgroundColor: 'var(--bg-surface)',
-                color: 'var(--text-muted)',
-                border: '1px solid var(--border-subtle)',
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={handleConfirm}
-              disabled={loading || !password}
-              className="flex-1 py-2 rounded-xl text-sm font-semibold transition-all"
-              style={{
-                backgroundColor: loading || !password ? 'var(--bg-hover)' : 'var(--accent)',
-                color: loading || !password ? 'var(--text-muted)' : '#fff',
-                cursor: loading || !password ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {loading ? 'Verificando…' : 'Confirmar'}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <style>{`
-        @keyframes shake {
-          0%,100%{transform:translateX(0)}
-          15%{transform:translateX(-8px)}
-          30%{transform:translateX(8px)}
-          45%{transform:translateX(-6px)}
-          60%{transform:translateX(6px)}
-          75%{transform:translateX(-3px)}
-          90%{transform:translateX(3px)}
-        }
-      `}</style>
-    </>
   );
 }
 
@@ -277,52 +155,16 @@ interface DocCardProps {
 
 function DocCard({ doc, onOpen, onRefresh }: DocCardProps) {
   const [hovered, setHovered] = useState(false);
-  const [showVaultModal, setShowVaultModal] = useState(false);
-  const [showOpenModal, setShowOpenModal] = useState(false);
-
-  const { setVaultUnlocked, vaultUnlocked, vaultPINEnabled } = useSecurityStore();
   const showModal = useModalStore((s) => s.show);
-
-  // ── Mover para o Cofre (workspace → vault) ─────────────────────────────────
-  async function handleSendToVault(e: React.MouseEvent) {
-    e.stopPropagation();
-    try {
-      await UpdateMetadata(doc.id, doc.tags, true);
-      onRefresh();
-    } catch (err: any) {
-      console.error(err);
-    }
-  }
-
-  // ── Remover do Cofre (requer senha) ────────────────────────────────────────
-  async function handleRemoveFromVault(password: string) {
-    // Authenticate — UnlockVault returns true if password is correct
-    const ok = await UnlockVault(password);
-    if (!ok) throw new Error('wrong password');
-    setVaultUnlocked(true);
-    await UpdateMetadata(doc.id, doc.tags, false);
-    setShowVaultModal(false);
-    onRefresh();
-  }
-
-  // ── Abrir doc do cofre — usa PIN se disponível, senão senha ──
-  async function handleOpenWithPassword(credential: string) {
-    const ok = vaultPINEnabled
-      ? await UnlockVaultWithPIN(credential)
-      : await UnlockVault(credential);
-    if (!ok) throw new Error(vaultPINEnabled ? 'wrong pin' : 'wrong password');
-    setVaultUnlocked(true);
-    setShowOpenModal(false);
-    onOpen(doc.id);
-  }
+  const t = useTranslation(dict);
 
   // ── Deletar documento ──────────────────────────────────────────────────────
   function handleDelete(e: React.MouseEvent) {
     e.stopPropagation();
     showModal({
       type: 'confirm',
-      title: 'Deletar documento',
-      message: `"${doc.title}" será deletado permanentemente. Esta ação não pode ser desfeita.`,
+      title: t.delete_doc_title,
+      message: t.delete_doc_msg.replace('{title}', doc.title || ''),
       onConfirm: async () => {
         await DeleteDocument(doc.id).catch(console.error);
         onRefresh();
@@ -331,134 +173,63 @@ function DocCard({ doc, onOpen, onRefresh }: DocCardProps) {
   }
 
   function handleCardClick() {
-    // If this is a vault doc and the vault is not yet unlocked, ask for password first
-    if (doc.is_vault && !vaultUnlocked) {
-      setShowOpenModal(true);
-    } else {
-      onOpen(doc.id);
-    }
+    onOpen(doc.id);
   }
 
   return (
-    <>
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={handleCardClick}
+      className="relative flex flex-col p-6 border rounded-2xl transition-all duration-300 cursor-pointer min-h-[200px]"
+      style={{
+        backgroundColor: hovered ? 'var(--bg-elevated)' : 'var(--bg-surface)',
+        borderColor: hovered ? 'var(--border)' : 'var(--border-subtle)',
+        boxShadow: hovered ? '0 0 15px rgba(0,0,0,0.04)' : '',
+      }}
+    >
       <div
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        onClick={handleCardClick}
-        className="relative flex flex-col p-6 border rounded-2xl transition-all duration-300 cursor-pointer min-h-[200px]"
-        style={{
-          backgroundColor: hovered ? 'var(--bg-elevated)' : 'var(--bg-surface)',
-          borderColor: hovered ? 'var(--border)' : 'var(--border-subtle)',
-          boxShadow: hovered ? '0 0 15px rgba(0,0,0,0.04)' : '',
-        }}
+        className="absolute top-4 right-4 flex items-center gap-1 transition-all duration-200"
+        style={{ opacity: hovered ? 1 : 0, pointerEvents: hovered ? 'auto' : 'none' }}
       >
-        {/* ── Hover action buttons (top-right) ── */}
-        <div
-          className="absolute top-4 right-4 flex items-center gap-1 transition-all duration-200"
-          style={{ opacity: hovered ? 1 : 0, pointerEvents: hovered ? 'auto' : 'none' }}
+        <button
+          onClick={handleDelete}
+          title={t.delete_doc_title}
+          className="p-1.5 rounded-lg transition-all duration-200 hover:scale-110"
+          style={{
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            color: 'var(--text-muted)',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
         >
-          {/* Vault toggle button */}
-          {doc.is_vault ? (
-            <button
-              onClick={(e) => { e.stopPropagation(); setShowVaultModal(true); }}
-              title="Remover do Cofre"
-              className="p-1.5 rounded-lg transition-all duration-200 hover:scale-110"
-              style={{
-                backgroundColor: 'var(--bg-surface)',
-                border: '1px solid var(--border-subtle)',
-                color: 'var(--accent)',
-              }}
-            >
-              <Lock className="w-3.5 h-3.5" strokeWidth={1.5} />
-            </button>
-          ) : (
-            <button
-              onClick={handleSendToVault}
-              title="Enviar para o Cofre"
-              className="p-1.5 rounded-lg transition-all duration-200 hover:scale-110"
-              style={{
-                backgroundColor: 'var(--bg-surface)',
-                border: '1px solid var(--border-subtle)',
-                color: 'var(--text-muted)',
-              }}
-            >
-              <Shield className="w-3.5 h-3.5" strokeWidth={1.5} />
-            </button>
-          )}
-
-          {/* Delete button */}
-          <button
-            onClick={handleDelete}
-            title="Deletar documento"
-            className="p-1.5 rounded-lg transition-all duration-200 hover:scale-110"
-            style={{
-              backgroundColor: 'var(--bg-surface)',
-              border: '1px solid var(--border-subtle)',
-              color: 'var(--text-muted)',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
-            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
-          >
-            <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
-          </button>
-
-        </div>
-
-        {/* ── Título ── */}
-        <div className="mb-2 pr-8">
-          <h3
-            className="text-xl font-light line-clamp-2"
-            style={{ color: 'var(--text-primary)' }}
-          >
-            {doc.title}
-          </h3>
-        </div>
-
-        <p
-          className="text-sm font-light line-clamp-2 mb-4 leading-relaxed flex-1"
-          style={{ color: 'var(--text-muted)' }}
-        >
-          {doc.snippet || 'Sem notas adicionais…'}
-        </p>
-
-        <div
-          className="flex flex-col pt-4 mt-auto gap-3"
-          style={{ borderTop: '1px solid var(--border-subtle)' }}
-        >
-          <div className="w-full">
-            <TagManager doc={doc} onRefresh={onRefresh} />
-          </div>
-          <span className="text-[9px] font-medium" style={{ color: 'var(--text-muted)' }}>
-            Atualizado em{' '}
-            {new Date(doc.updated_at).toLocaleString('pt-BR', {
-              dateStyle: 'short',
-              timeStyle: 'short',
-            })}
-          </span>
-        </div>
+          <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+        </button>
       </div>
 
-      {/* ── Modal de senha para remover do cofre ── */}
-      {showVaultModal && (
-        <VaultPasswordModal
-          docTitle={doc.title}
-          onConfirm={handleRemoveFromVault}
-          onCancel={() => setShowVaultModal(false)}
-          mode="remove"
-        />
-      )}
+      <div className="mb-2 pr-8">
+        <h3 className="text-xl font-light line-clamp-2" style={{ color: 'var(--text-primary)' }}>
+          {doc.title}
+        </h3>
+      </div>
 
-      {/* ── Modal de senha para abrir doc do cofre ── */}
-      {showOpenModal && (
-        <VaultPasswordModal
-          docTitle={doc.title}
-          onConfirm={handleOpenWithPassword}
-          onCancel={() => setShowOpenModal(false)}
-          mode="open"
-          isPIN={vaultPINEnabled}
-        />
-      )}
-    </>
+      <div
+        className="flex flex-col pt-4 mt-auto gap-3"
+        style={{ borderTop: '1px solid var(--border-subtle)' }}
+      >
+        <div className="w-full">
+          <TagManager doc={doc} onRefresh={onRefresh} />
+        </div>
+        <span className="text-[9px] font-medium" style={{ color: 'var(--text-muted)' }}>
+          {t.updated_at}{' '}
+          {new Date(doc.updated_at).toLocaleString('pt-BR', {
+            dateStyle: 'short',
+            timeStyle: 'short',
+          })}
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -467,11 +238,10 @@ function DocCard({ doc, onOpen, onRefresh }: DocCardProps) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function HomeScreen() {
-  const { createDocument, loadDocument, setView, homeFilter, setHomeFilter, setDocsCount } =
-    useEditorStore();
+  const { createDocument, openDocument, setView, homeFilter, setDocsCount } = useEditorStore();
 
   const [docs, setDocs] = useState<models.SearchResult[]>([]);
-
+  const t = useTranslation(dict);
 
   const fetchDocs = () => {
     ListDocuments(homeFilter, 50)
@@ -483,25 +253,18 @@ export function HomeScreen() {
       .catch((err) => console.error('Error listing documents:', err));
   };
 
-  useEffect(() => { fetchDocs(); }, [homeFilter]);
+  useEffect(() => {
+    fetchDocs();
+  }, [homeFilter]);
 
   const handleOpen = (id: string) => {
-    loadDocument(id);
-    setView('editor');
+    openDocument(id);
   };
-
 
   const handleNew = () => {
     createDocument();
     setView('editor');
   };
-
-  const navItems = [
-    { id: 'recent', label: 'Recentes', icon: FileText },
-    { id: 'protected', label: 'Protegidos', icon: Shield },
-  ];
-
-  const activeIndex = navItems.findIndex((item) => item.id === homeFilter);
 
   return (
     <div
@@ -514,41 +277,6 @@ export function HomeScreen() {
             <div>
               <h1 className="text-3xl logo-font text-slate-900 dark:text-white">Writtt.</h1>
             </div>
-
-            <nav
-              className="relative grid p-1 rounded-xl border shadow-inner"
-              style={{
-                backgroundColor: 'var(--bg-surface)',
-                borderColor: 'var(--border-subtle)',
-                gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))`,
-              }}
-            >
-              <div
-                className="absolute left-1 top-1 bottom-1 rounded-lg shadow-[0_2px_8px_-2px_rgba(0,0,0,0.08),0_1px_4px_-1px_rgba(0,0,0,0.04)] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] z-0"
-                style={{
-                  backgroundColor: 'var(--bg-elevated)',
-                  width: `calc((100% - 8px) / ${navItems.length})`,
-                  transform: `translateX(calc(${activeIndex} * 100%))`,
-                }}
-              />
-              {navItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setHomeFilter(item.id as any)}
-                  className={`relative flex justify-center items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] z-10 font-medium ${homeFilter === item.id
-                    ? 'text-slate-900 dark:text-white'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-                    }`}
-                >
-                  <item.icon
-                    className={`w-4 h-4 transition-colors duration-500 ${homeFilter === item.id ? 'text-blue-500 dark:text-blue-400' : 'opacity-50'
-                      }`}
-                    strokeWidth={1.5}
-                  />
-                  <span>{item.label}</span>
-                </button>
-              ))}
-            </nav>
           </div>
 
           <div
@@ -556,44 +284,37 @@ export function HomeScreen() {
             style={{ color: 'var(--text-muted)' }}
           >
             <span className="w-8 h-[1px]" style={{ backgroundColor: 'var(--border)' }} />
-            {navItems.find((i) => i.id === homeFilter)?.label || 'Workspace'}
+            {t.workspace_sec}
           </div>
-          <h2 className="text-5xl md:text-6xl font-extralight text-slate-900 dark:text-white tracking-tight leading-tight max-w-3xl">
-            {homeFilter === 'recent' ? 'Continue de onde parou.' : 'Área restrita.'}
+          <h2 className="text-5xl md:text-6xl font-extralight text-slate-900 dark:text-white tracking-tight leading-tight max-w-3xl whitespace-pre-line">
+            {t.hero_title}
           </h2>
         </header>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-16">
           {/* ── Botão Novo Documento ── */}
-          {homeFilter === 'recent' && (
+          <div
+            onClick={handleNew}
+            className="group flex flex-col items-center justify-center p-6 backdrop-blur-sm border-2 border-dashed rounded-2xl transition-all duration-500 cursor-pointer min-h-[200px] dark:border-slate-700/50 dark:hover:border-blue-500 dark:bg-slate-900/20 dark:hover:bg-slate-900/40 hover:border-blue-500"
+            style={{ backgroundColor: 'transparent', borderColor: 'var(--border)' }}
+          >
             <div
-              onClick={handleNew}
-              className="group flex flex-col items-center justify-center p-6 backdrop-blur-sm border-2 border-dashed rounded-2xl transition-all duration-500 cursor-pointer min-h-[200px] dark:border-slate-700/50 dark:hover:border-blue-500 dark:bg-slate-900/20 dark:hover:bg-slate-900/40 hover:border-blue-500"
-              style={{ backgroundColor: 'transparent', borderColor: 'var(--border)' }}
+              className="w-12 h-12 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 group-hover:bg-blue-100 dark:group-hover:bg-blue-500/20 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-all duration-500 backdrop-blur-sm"
+              style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)' }}
             >
-              <div
-                className="w-12 h-12 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 group-hover:bg-blue-100 dark:group-hover:bg-blue-500/20 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-all duration-500 backdrop-blur-sm"
-                style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)' }}
-              >
-                <Plus className="w-6 h-6" strokeWidth={1.5} />
-              </div>
-              <span className="text-slate-600 dark:text-slate-300 font-medium text-lg">
-                Novo Documento
-              </span>
-              <span className="text-slate-400 dark:text-slate-500 text-sm mt-2 font-light text-center">
-                Suas palavras são suas. Completamente.
-              </span>
+              <Plus className="w-6 h-6" strokeWidth={1.5} />
             </div>
-          )}
+            <span className="text-slate-600 dark:text-slate-300 font-medium text-lg">
+              {t.new_doc}
+            </span>
+            <span className="text-slate-400 dark:text-slate-500 text-sm mt-2 font-light text-center">
+              {t.new_doc_desc}
+            </span>
+          </div>
 
           {/* ── Documentos ── */}
           {docs.map((doc) => (
-            <DocCard
-              key={doc.id}
-              doc={doc}
-              onOpen={handleOpen}
-              onRefresh={fetchDocs}
-            />
+            <DocCard key={doc.id} doc={doc} onOpen={handleOpen} onRefresh={fetchDocs} />
           ))}
         </div>
       </div>

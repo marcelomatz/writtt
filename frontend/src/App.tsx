@@ -1,28 +1,23 @@
 import { useEffect, useState } from 'react';
+import { GetSecurityConfig, IsVaultUnlocked, LockApp, LockVault } from '../wailsjs/go/main/App';
+import { EventsOn } from '../wailsjs/runtime/runtime';
+import { AIAssistantSidebar } from './components/AIAssistantSidebar';
+import { CommandPalette } from './components/CommandPalette';
+import { DocumentTree } from './components/DocumentTree';
+import { Editor } from './components/Editor';
+import { EmptyState } from './components/EmptyState';
+import { HomeScreen } from './components/HomeScreen';
+import { LockScreen } from './components/LockScreen';
+import { Modal } from './components/Modal';
+import { SettingsScreen } from './components/SettingsScreen';
+import { StatusBar } from './components/StatusBar';
+import { TitleBar } from './components/TitleBar';
 import { useEditorStore } from './store/editorStore';
 import { useSecurityStore } from './store/securityStore';
-import { Editor } from './components/Editor';
-import { CommandPalette } from './components/CommandPalette';
-import { StatusBar } from './components/StatusBar';
-import { HomeScreen } from './components/HomeScreen';
-import { SettingsScreen } from './components/SettingsScreen';
-import { Modal } from './components/Modal';
-import { TitleBar } from './components/TitleBar';
-import { EmptyState } from './components/EmptyState';
-import { LockScreen } from './components/LockScreen';
-import { EventsOn } from '../wailsjs/runtime/runtime';
-import { GetSecurityConfig, IsVaultUnlocked, LockVault, LockApp } from '../wailsjs/go/main/App';
 
 function App() {
-  const {
-    primaryDoc,
-    loadDocument,
-    theme,
-    view,
-    setView,
-    createDocument,
-    saveCurrentDocument,
-  } = useEditorStore();
+  const { primaryDoc, loadDocument, theme, view, setView, createDocument, saveCurrentDocument } =
+    useEditorStore();
 
   // ── Security gate ─────────────────────────────────────────────────────────
   const [locked, setLocked] = useState<boolean | null>(null);
@@ -62,7 +57,7 @@ function App() {
   // Auto-lock vault whenever user navigates away from editor
   useEffect(() => {
     if (view === 'home' || view === 'settings') {
-      LockVault().catch(() => { });
+      LockVault().catch(() => {});
       setVaultUnlocked(false);
     }
   }, [view]);
@@ -73,7 +68,9 @@ function App() {
       setIsMidSessionLock(true);
       setLocked(true);
     });
-    return () => { if (typeof unsub === 'function') unsub(); };
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
   }, []);
 
   useEffect(() => {
@@ -85,7 +82,7 @@ function App() {
       // Ctrl/Cmd + L : Lock app
       if (e.key === 'l' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        LockApp().catch(() => { });
+        LockApp().catch(() => {});
         return;
       }
 
@@ -115,7 +112,9 @@ function App() {
         loadDocument(id);
       }
     });
-    return () => { if (typeof unsub === 'function') unsub(); };
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
   }, [primaryDoc?.frontmatter?.id]);
 
   if (locked === null) {
@@ -128,18 +127,18 @@ function App() {
       <CommandPalette />
       <Modal />
 
-      <div className="flex flex-1 w-full overflow-hidden mt-[40px]">
+      <div className="flex flex-1 w-full overflow-hidden mt-[40px] px-2 pb-2">
         {view === 'home' ? (
           <HomeScreen />
         ) : view === 'settings' ? (
           <SettingsScreen />
         ) : (
-          <div className="flex-1 h-full" style={{ backgroundColor: 'var(--bg-base)' }}>
-            {primaryDoc ? (
-              <Editor />
-            ) : (
-              <EmptyState />
-            )}
+          <div className="flex flex-1 h-full w-full overflow-hidden gap-2 bg-transparent">
+            <DocumentTree />
+            <div className="flex-1 h-full overflow-hidden relative">
+              {primaryDoc ? <Editor /> : <EmptyState />}
+            </div>
+            <AIAssistantSidebar />
           </div>
         )}
       </div>

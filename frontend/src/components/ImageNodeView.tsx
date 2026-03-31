@@ -1,4 +1,4 @@
-import { NodeViewWrapper, NodeViewProps } from '@tiptap/react';
+import { type NodeViewProps, NodeViewWrapper } from '@tiptap/react';
 
 /**
  * React NodeView for the Image extension.
@@ -27,8 +27,8 @@ export function ImageNodeView({ node, selected }: NodeViewProps) {
     align === 'left'
       ? { marginRight: 'auto', marginLeft: 0, alignSelf: 'flex-start' }
       : align === 'right'
-      ? { marginLeft: 'auto', marginRight: 0, alignSelf: 'flex-end' }
-      : { marginLeft: 'auto', marginRight: 'auto' }; // center
+        ? { marginLeft: 'auto', marginRight: 0, alignSelf: 'flex-end' }
+        : { marginLeft: 'auto', marginRight: 'auto' }; // center
 
   return (
     <NodeViewWrapper
@@ -43,11 +43,7 @@ export function ImageNodeView({ node, selected }: NodeViewProps) {
         data-caption={caption ?? ''}
         draggable="false"
       />
-      {caption && (
-        <figcaption className="image-caption">
-          {caption}
-        </figcaption>
-      )}
+      {caption && <figcaption className="image-caption">{caption}</figcaption>}
     </NodeViewWrapper>
   );
 }
