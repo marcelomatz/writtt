@@ -1,5 +1,6 @@
 import {
   ArrowLeft,
+  Book,
   BrainCircuit,
   Code2,
   Database,
@@ -10,11 +11,14 @@ import {
   Info,
   Lock,
   Palette,
+  Plus,
   Shield,
   WifiOff,
+  X,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from '../hooks/useTranslation';
+import { useDictionaryStore } from '../store/dictionaryStore';
 import { useEditorStore } from '../store/editorStore';
 import { useI18nStore } from '../store/i18nStore';
 import { SecurityTab } from './SecurityTab';
@@ -25,6 +29,8 @@ const dict = {
     desc_theme: 'Tema visual',
     tab_security: 'Segurança',
     desc_security: 'Senha e criptografia',
+    tab_dictionary: 'Dicionário',
+    desc_dictionary: 'Palavras personalizadas',
     tab_about: 'Sobre',
     desc_about: 'O que é o Writtt',
     btn_back: 'Voltar',
@@ -70,12 +76,20 @@ const dict = {
       ' rodando a sua inteligência de código-fonte aberto, nativamente no seu computador. Não importa se você colocar todas as planilhas financeiras da sua empresa na sua nota, nenhuma linha cruzará o seu Wi-Fi. A mente que reescreve o seu texto é vizinha de parede dele, no mesmo disco.',
     footer_text: 'Construído para quem pensa sem pressa.',
     version: 'Versão 0.1.0-beta',
+    dict_title: 'Dicionário Pessoal',
+    dict_desc: 'Adicione palavras que não devem ser marcadas como erro ortográfico.',
+    dict_add_placeholder: 'Adicionar palavra...',
+    dict_add_btn: 'Adicionar',
+    dict_count: 'palavras',
+    dict_empty: 'Nenhuma palavra adicionada ainda.',
   },
   en: {
     tab_theme: 'Appearance',
     desc_theme: 'Visual theme',
     tab_security: 'Security',
     desc_security: 'Password and encryption',
+    tab_dictionary: 'Dictionary',
+    desc_dictionary: 'Custom words',
     tab_about: 'About',
     desc_about: 'What is Writtt',
     btn_back: 'Back',
@@ -121,17 +135,33 @@ const dict = {
       " technology running its open-source intelligence natively on your computer. It doesn't matter if you put all your company's financial spreadsheets in your note, not a single line will cross your Wi-Fi. The mind that rewrites your text is its next-door neighbor, on the same disk.",
     footer_text: 'Built for those who think unhurriedly.',
     version: 'Version 0.1.0-beta',
+    dict_title: 'Personal Dictionary',
+    dict_desc: 'Add words that should not be marked as spelling errors.',
+    dict_add_placeholder: 'Add word...',
+    dict_add_btn: 'Add',
+    dict_count: 'words',
+    dict_empty: 'No words added yet.',
   },
 };
 
 export function SettingsScreen() {
   const { setView, theme, setTheme } = useEditorStore();
   const { language, setLanguage } = useI18nStore();
+  const { words, addWord, removeWord } = useDictionaryStore();
   const [activeTab, setActiveTab] = useState('theme');
+  const [newWord, setNewWord] = useState('');
   const t = useTranslation(dict);
+
+  const handleAddWord = () => {
+    if (newWord.trim()) {
+      addWord(newWord);
+      setNewWord('');
+    }
+  };
 
   const tabs = [
     { id: 'theme', label: t.tab_theme, icon: Palette, desc: t.desc_theme },
+    { id: 'dictionary', label: t.tab_dictionary, icon: Book, desc: t.desc_dictionary },
     { id: 'security', label: t.tab_security, icon: Shield, desc: t.desc_security },
     { id: 'about', label: t.tab_about, icon: Info, desc: t.desc_about },
   ];
@@ -350,6 +380,95 @@ export function SettingsScreen() {
         {activeTab === 'security' && (
           <div className="p-12 max-w-2xl">
             <SecurityTab />
+          </div>
+        )}
+
+        {/* ── Dicionário ── */}
+        {activeTab === 'dictionary' && (
+          <div className="p-12 max-w-3xl animate-in fade-in slide-in-from-bottom-2 duration-500">
+            <h3
+              className="text-2xl font-extralight tracking-tight mb-1"
+              style={{ color: 'var(--text-primary)' }}
+            >
+              <Book className="inline-block w-5 h-5 mr-2 -mt-1 opacity-70" />
+              {t.dict_title}
+            </h3>
+            <p className="text-sm font-light mb-8" style={{ color: 'var(--text-muted)' }}>
+              {t.dict_desc}
+            </p>
+
+            {/* Add word input */}
+            <div className="flex items-center gap-2 mb-6">
+              <input
+                type="text"
+                value={newWord}
+                onChange={(e) => setNewWord(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAddWord()}
+                placeholder={t.dict_add_placeholder}
+                className="flex-1 px-4 py-2.5 rounded-xl border text-sm font-light transition-all duration-200 focus:outline-none"
+                style={{
+                  backgroundColor: 'var(--bg-elevated)',
+                  borderColor: 'var(--border)',
+                  color: 'var(--text-primary)',
+                }}
+                onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
+              />
+              <button
+                onClick={handleAddWord}
+                disabled={!newWord.trim()}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium text-white transition-all duration-200 disabled:opacity-30"
+                style={{ backgroundColor: 'var(--accent)' }}
+              >
+                <Plus className="w-4 h-4" strokeWidth={2} />
+                {t.dict_add_btn}
+              </button>
+            </div>
+
+            {/* Word count */}
+            <div className="flex items-center gap-2 mb-4">
+              <span
+                className="text-xs font-medium px-2.5 py-1 rounded-full"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                  color: 'var(--accent)',
+                }}
+              >
+                {words.length} {t.dict_count}
+              </span>
+            </div>
+
+            {/* Word list */}
+            {words.length === 0 ? (
+              <p className="text-sm font-light py-8 text-center" style={{ color: 'var(--text-muted)' }}>
+                {t.dict_empty}
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {words.map((word) => (
+                  <span
+                    key={word}
+                    className="group flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-light border transition-all duration-150"
+                    style={{
+                      backgroundColor: 'var(--bg-surface)',
+                      borderColor: 'var(--border-subtle)',
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    {word}
+                    <button
+                      onClick={() => removeWord(word)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded-md"
+                      style={{ color: 'var(--text-muted)' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+                    >
+                      <X className="w-3 h-3" strokeWidth={2.5} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

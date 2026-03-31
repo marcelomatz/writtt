@@ -1,9 +1,20 @@
 import { NodeSelection } from '@tiptap/pm/state';
 import type { Editor } from '@tiptap/react';
 import { BubbleMenu as TipTapBubbleMenu } from '@tiptap/react/menus';
-import { Bold, Heading1, Heading2, Italic, Link as LinkIcon } from 'lucide-react';
+import {
+  Bold,
+  BookPlus,
+  Heading1,
+  Heading2,
+  Highlighter,
+  Italic,
+  Link as LinkIcon,
+  Strikethrough,
+  Underline as UnderlineIcon,
+} from 'lucide-react';
 import { useCallback } from 'react';
 import { useTranslation } from '../hooks/useTranslation';
+import { useDictionaryStore } from '../store/dictionaryStore';
 import { useModalStore } from '../store/modalStore';
 
 const dict = {
@@ -15,6 +26,10 @@ const dict = {
     heading1: 'Título 1',
     heading2: 'Título 2',
     link: 'Link',
+    underline: 'Sublinhado',
+    strike: 'Tachado',
+    highlight: 'Realçar',
+    add_to_dict: 'Adicionar ao dicionário',
   },
   en: {
     add_link: 'Add Link',
@@ -24,6 +39,10 @@ const dict = {
     heading1: 'Heading 1',
     heading2: 'Heading 2',
     link: 'Link',
+    underline: 'Underline',
+    strike: 'Strikethrough',
+    highlight: 'Highlight',
+    add_to_dict: 'Add to dictionary',
   },
 };
 
@@ -33,6 +52,16 @@ export interface BubbleMenuProps {
 
 export function BubbleMenu({ editor }: BubbleMenuProps) {
   const t = useTranslation(dict);
+  const addWord = useDictionaryStore((s) => s.addWord);
+
+  const addSelectionToDictionary = useCallback(() => {
+    const { from, to } = editor.state.selection;
+    const text = editor.state.doc.textBetween(from, to, ' ').trim();
+    if (text) {
+      // Add each word individually
+      text.split(/\s+/).forEach((w) => addWord(w));
+    }
+  }, [editor, addWord]);
 
   const setLink = useCallback(() => {
     const previousUrl = editor.getAttributes('link').href;
@@ -64,6 +93,24 @@ export function BubbleMenu({ editor }: BubbleMenuProps) {
       action: () => editor.chain().focus().toggleItalic().run(),
       isActive: editor.isActive('italic'),
       label: t.italic,
+    },
+    {
+      icon: UnderlineIcon,
+      action: () => editor.chain().focus().toggleUnderline().run(),
+      isActive: editor.isActive('underline'),
+      label: t.underline,
+    },
+    {
+      icon: Strikethrough,
+      action: () => editor.chain().focus().toggleStrike().run(),
+      isActive: editor.isActive('strike'),
+      label: t.strike,
+    },
+    {
+      icon: Highlighter,
+      action: () => editor.chain().focus().toggleHighlight().run(),
+      isActive: editor.isActive('highlight'),
+      label: t.highlight,
     },
     {
       icon: Heading1,
@@ -115,6 +162,22 @@ export function BubbleMenu({ editor }: BubbleMenuProps) {
             <btn.icon className="w-4 h-4" strokeWidth={1.5} />
           </button>
         ))}
+
+        {/* Divider */}
+        <div
+          className="w-px h-5 mx-0.5"
+          style={{ backgroundColor: 'var(--border)' }}
+        />
+
+        {/* Add to dictionary */}
+        <button
+          onClick={addSelectionToDictionary}
+          className="p-1.5 rounded-md transition-all duration-300 dark:text-slate-300 dark:hover:text-slate-100 dark:hover:bg-slate-700 hover:text-slate-700"
+          style={{ color: 'var(--text-secondary)' }}
+          title={t.add_to_dict}
+        >
+          <BookPlus className="w-4 h-4" strokeWidth={1.5} />
+        </button>
       </div>
     </TipTapBubbleMenu>
   );

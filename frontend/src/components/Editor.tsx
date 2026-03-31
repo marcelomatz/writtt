@@ -1,22 +1,36 @@
 import BubbleMenuExtension from '@tiptap/extension-bubble-menu';
 import CharacterCount from '@tiptap/extension-character-count';
+import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import Focus from '@tiptap/extension-focus';
+import Highlight from '@tiptap/extension-highlight';
 import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
+import { TableKit } from '@tiptap/extension-table';
+import TaskItem from '@tiptap/extension-task-item';
+import TaskList from '@tiptap/extension-task-list';
 import TextAlign from '@tiptap/extension-text-align';
 import Typography from '@tiptap/extension-typography';
+import Underline from '@tiptap/extension-underline';
 import { EditorContent, ReactNodeViewRenderer, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { useEffect, useRef, useState } from 'react';
+import { all, createLowlight } from 'lowlight';
 import { Markdown } from 'tiptap-markdown';
 import { SaveAttachment } from '../../wailsjs/go/main/App';
+import { CustomDictionary } from '../extensions/CustomDictionary';
+import { Drawing } from '../extensions/DrawingExtension';
+import { createSlashCommand } from '../extensions/SlashCommand';
+import { CodeBlockNodeView } from './CodeBlockNodeView';
 import { useTranslation } from '../hooks/useTranslation';
 import { useEditorStore } from '../store/editorStore';
 import { useSecurityStore } from '../store/securityStore';
 import { BubbleMenu } from './BubbleMenu';
+import { ChapterNavigator } from './ChapterNavigator';
+import { EditorContextMenu } from './EditorContextMenu';
 import { ImageBubbleMenu } from './ImageBubbleMenu';
 import { ImageNodeView } from './ImageNodeView';
+import { TableBubbleMenu } from './TableBubbleMenu';
 import { Toolbar } from './Toolbar';
 import { VaultUnlockOverlay } from './VaultUnlockOverlay';
 
@@ -35,10 +49,11 @@ const dict = {
 
 export function Editor() {
   const t = useTranslation(dict);
-  const { primaryDoc, saveCurrentDocument, setStats, updateDocumentTitle } = useEditorStore();
+  const { primaryDoc, saveCurrentDocument, setStats, updateDocumentTitle, sessionCreatedDocId } = useEditorStore();
 
   const doc = primaryDoc;
   const { vaultUnlocked } = useSecurityStore();
+  const showChapters = useEditorStore((s) => s.showChapters);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const scrollRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
@@ -63,6 +78,17 @@ export function Editor() {
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
         paragraph: { HTMLAttributes: { class: 'leading-relaxed mb-4' } },
+        codeBlock: false,
+        link: false,
+        underline: false,
+      }),
+      CodeBlockLowlight.extend({
+        addNodeView() {
+          return ReactNodeViewRenderer(CodeBlockNodeView);
+        },
+      }).configure({
+        lowlight: createLowlight(all),
+        defaultLanguage: 'plaintext',
       }),
       Markdown.configure({
         html: false,
@@ -131,6 +157,16 @@ export function Editor() {
         openOnClick: true,
         autolink: true,
       }),
+      TaskList,
+      TaskItem.configure({ nested: true }),
+      TableKit.configure({
+        table: { resizable: true },
+      }),
+      Highlight,
+      Underline,
+      Drawing,
+      CustomDictionary,
+      createSlashCommand((document.documentElement.lang || 'pt') as 'pt' | 'en'),
       BubbleMenuExtension,
     ],
     editorProps: {
@@ -266,8 +302,6 @@ export function Editor() {
     }
   }, [doc?.content, doc?.frontmatter?.id, editor]);
 
-  const { sessionCreatedDocId } = useEditorStore();
-  
   if (!doc) {
     return (
       <div className="h-full flex items-center justify-center text-slate-400 dark:text-slate-600">
@@ -302,8 +336,13 @@ export function Editor() {
 
       {editor && <BubbleMenu editor={editor} />}
       {editor && <ImageBubbleMenu editor={editor} />}
+      {editor && <TableBubbleMenu editor={editor} />}
+      <EditorContextMenu editor={editor} />
 
-      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
+      <div className="flex flex-1 overflow-hidden">
+        <ChapterNavigator editor={editor} visible={showChapters} />
+
+        <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
         <div className="px-16 py-12 prose prose-slate dark:prose-invert max-w-4xl mx-auto focus:outline-none selection:bg-blue-100/50 dark:selection:bg-blue-900/30">
           <textarea
             ref={titleRef}
@@ -324,6 +363,7 @@ export function Editor() {
           />
           <div className="font-light leading-relaxed text-lg">
             <EditorContent editor={editor} />
+          </div>
           </div>
         </div>
       </div>

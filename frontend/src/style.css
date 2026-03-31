@@ -91,6 +91,11 @@ html.dark body, html.dark #root {
   outline: none !important;
 }
 
+/* Toolbar scrollbar hide for webkit */
+.overflow-x-auto::-webkit-scrollbar {
+  display: none;
+}
+
 /* Tiptap placeholder */
 .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
@@ -147,4 +152,672 @@ html.dark body, html.dark #root {
   text-align: center;
   line-height: 1.4;
   padding: 0 0.5rem;
+}
+
+/* ── Code Block with Language Selector ─────────────────────────────── */
+.code-block-wrapper {
+  position: relative;
+  margin: 1rem 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated, #1e1e1e);
+}
+
+.code-block-wrapper pre {
+  margin: 0;
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+.code-block-wrapper pre code {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  background: transparent !important;
+}
+
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0.35rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-surface) 60%, transparent);
+}
+
+.code-block-lang-btn {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  background: transparent;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.15s ease;
+}
+
+.code-block-lang-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.code-block-lang-dropdown {
+  position: absolute;
+  top: 2.2rem;
+  right: 0.75rem;
+  z-index: 50;
+  min-width: 150px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 0.25rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.code-block-lang-option {
+  display: block;
+  width: 100%;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.75rem;
+  text-align: left;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  background: transparent;
+  transition: all 0.1s ease;
+}
+
+.code-block-lang-option:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.code-block-lang-option.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ── Syntax Highlighting (lowlight/hljs tokens) ────────────────────── */
+/* Light theme — warm, readable tones matching cream palette */
+.code-block-wrapper .hljs-comment,
+.code-block-wrapper .hljs-quote {
+  color: #8b8573;
+  font-style: italic;
+}
+
+.code-block-wrapper .hljs-keyword,
+.code-block-wrapper .hljs-selector-tag,
+.code-block-wrapper .hljs-addition {
+  color: #7c3aed;
+}
+
+.code-block-wrapper .hljs-string,
+.code-block-wrapper .hljs-meta .hljs-string,
+.code-block-wrapper .hljs-regexp,
+.code-block-wrapper .hljs-attribute {
+  color: #b45309;
+}
+
+.code-block-wrapper .hljs-number,
+.code-block-wrapper .hljs-literal,
+.code-block-wrapper .hljs-variable,
+.code-block-wrapper .hljs-template-variable,
+.code-block-wrapper .hljs-tag .hljs-attr {
+  color: #0d9488;
+}
+
+.code-block-wrapper .hljs-title,
+.code-block-wrapper .hljs-section,
+.code-block-wrapper .hljs-name,
+.code-block-wrapper .hljs-selector-id,
+.code-block-wrapper .hljs-selector-class {
+  color: #2563eb;
+}
+
+.code-block-wrapper .hljs-type,
+.code-block-wrapper .hljs-built_in,
+.code-block-wrapper .hljs-builtin-name,
+.code-block-wrapper .hljs-params {
+  color: #c2410c;
+}
+
+.code-block-wrapper .hljs-symbol,
+.code-block-wrapper .hljs-bullet,
+.code-block-wrapper .hljs-link,
+.code-block-wrapper .hljs-meta {
+  color: #059669;
+}
+
+.code-block-wrapper .hljs-deletion {
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.08);
+}
+
+.code-block-wrapper .hljs-addition {
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.08);
+}
+
+.code-block-wrapper .hljs-emphasis {
+  font-style: italic;
+}
+
+.code-block-wrapper .hljs-strong {
+  font-weight: bold;
+}
+
+/* Dark theme — vibrant, high-contrast colors */
+:where(.dark, .dark *) .code-block-wrapper .hljs-comment,
+:where(.dark, .dark *) .code-block-wrapper .hljs-quote {
+  color: #6b7280;
+  font-style: italic;
+}
+
+:where(.dark, .dark *) .code-block-wrapper .hljs-keyword,
+:where(.dark, .dark *) .code-block-wrapper .hljs-selector-tag {
+  color: #c084fc;
+}
+
+:where(.dark, .dark *) .code-block-wrapper .hljs-string,
+:where(.dark, .dark *) .code-block-wrapper .hljs-meta .hljs-string,
+:where(.dark, .dark *) .code-block-wrapper .hljs-regexp,
+:where(.dark, .dark *) .code-block-wrapper .hljs-attribute {
+  color: #fbbf24;
+}
+
+:where(.dark, .dark *) .code-block-wrapper .hljs-number,
+:where(.dark, .dark *) .code-block-wrapper .hljs-literal,
+:where(.dark, .dark *) .code-block-wrapper .hljs-variable,
+:where(.dark, .dark *) .code-block-wrapper .hljs-template-variable,
+:where(.dark, .dark *) .code-block-wrapper .hljs-tag .hljs-attr {
+  color: #2dd4bf;
+}
+
+:where(.dark, .dark *) .code-block-wrapper .hljs-title,
+:where(.dark, .dark *) .code-block-wrapper .hljs-section,
+:where(.dark, .dark *) .code-block-wrapper .hljs-name,
+:where(.dark, .dark *) .code-block-wrapper .hljs-selector-id,
+:where(.dark, .dark *) .code-block-wrapper .hljs-selector-class {
+  color: #60a5fa;
+}
+
+:where(.dark, .dark *) .code-block-wrapper .hljs-type,
+:where(.dark, .dark *) .code-block-wrapper .hljs-built_in,
+:where(.dark, .dark *) .code-block-wrapper .hljs-builtin-name,
+:where(.dark, .dark *) .code-block-wrapper .hljs-params {
+  color: #fb923c;
+}
+
+:where(.dark, .dark *) .code-block-wrapper .hljs-symbol,
+:where(.dark, .dark *) .code-block-wrapper .hljs-bullet,
+:where(.dark, .dark *) .code-block-wrapper .hljs-link,
+:where(.dark, .dark *) .code-block-wrapper .hljs-meta {
+  color: #34d399;
+}
+
+:where(.dark, .dark *) .code-block-wrapper .hljs-deletion {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+}
+
+:where(.dark, .dark *) .code-block-wrapper .hljs-addition {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+}
+
+/* ── Context Menu (Right-Click) ────────────────────────────────────── */
+.context-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 200px;
+  padding: 0.35rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+  animation: contextFadeIn 0.12s ease-out;
+}
+
+@keyframes contextFadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.45rem 0.7rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  background: transparent;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  text-align: left;
+  transition: background 0.1s ease;
+}
+
+.context-menu-item:hover {
+  background: var(--bg-surface);
+}
+
+.context-menu-item svg {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.context-menu-divider {
+  height: 1px;
+  margin: 0.25rem 0.5rem;
+  background: var(--border);
+}
+
+.context-menu-word {
+  margin-left: 0.35rem;
+  font-style: italic;
+  font-size: 0.75rem;
+  color: var(--accent);
+}
+
+/* ── Chapter Navigator ─────────────────────────────────────────────── */
+.chapter-navigator {
+  width: 240px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border-subtle);
+  border-radius: 1rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  animation: chapterSlideIn 0.25s ease-out;
+}
+
+@keyframes chapterSlideIn {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.chapter-navigator-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.chapter-count-badge {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 99px;
+  font-weight: 600;
+}
+
+.chapter-navigator-list {
+  padding: 0.5rem;
+}
+
+.chapter-empty {
+  font-size: 0.75rem;
+  text-align: center;
+  padding: 2rem 1rem;
+  line-height: 1.5;
+}
+
+.chapter-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  background: transparent;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+
+.chapter-item:hover {
+  background: var(--bg-elevated);
+}
+
+.chapter-item.active {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.chapter-item-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.chapter-item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.chapter-item-title {
+  font-size: 0.8rem;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chapter-item-words {
+  font-size: 0.65rem;
+  line-height: 1;
+}
+
+/* ── Slash Command Menu ────────────────────────────────────────────── */
+.slash-menu {
+  min-width: 240px;
+  max-width: 300px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 0.35rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  scrollbar-width: thin;
+}
+
+.slash-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  background: transparent;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+
+.slash-menu-item:hover,
+.slash-menu-item.active {
+  background: var(--bg-surface);
+}
+
+.slash-menu-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+}
+
+.slash-menu-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.slash-menu-title {
+  font-size: 0.825rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.slash-menu-desc {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  line-height: 1.2;
+}
+
+/* ── Task List ──────────────────────────────────────────────────────── */
+.ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+
+.ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.15rem 0;
+}
+
+.ProseMirror ul[data-type="taskList"] li > label {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.25em;
+  user-select: none;
+}
+
+.ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Kill margins on p inside task items so text sits next to checkbox */
+.ProseMirror ul[data-type="taskList"] li > div > p {
+  margin: 0;
+  padding: 0;
+}
+
+.ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+  background: transparent;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"]:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 5px;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div > p {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+/* nested task lists */
+.ProseMirror ul[data-type="taskList"] ul[data-type="taskList"] {
+  margin-left: 1.5rem;
+}
+
+/* ── Tables ─────────────────────────────────────────────────────────── */
+.ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+  table-layout: fixed;
+  overflow: hidden;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.ProseMirror th,
+.ProseMirror td {
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.75rem;
+  position: relative;
+  text-align: left;
+  vertical-align: top;
+  min-width: 80px;
+}
+
+.ProseMirror th {
+  font-weight: 600;
+  background: var(--bg-elevated);
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.ProseMirror td {
+  background: transparent;
+}
+
+.ProseMirror .selectedCell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.ProseMirror .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: -2px;
+  width: 4px;
+  background: var(--accent);
+  cursor: col-resize;
+  z-index: 20;
+}
+
+.ProseMirror.resize-cursor {
+  cursor: col-resize;
+}
+
+/* ── Highlight Mark ─────────────────────────────────────────────────── */
+.ProseMirror mark {
+  background-color: #fef08a;
+  border-radius: 2px;
+  padding: 0.1em 0.15em;
+  box-decoration-break: clone;
+}
+
+.dark .ProseMirror mark {
+  background-color: #854d0e;
+  color: #fef9c3;
+}
+
+/* ── Horizontal Rule ────────────────────────────────────────────────── */
+.ProseMirror hr {
+  border: none;
+  height: 1px;
+  background: var(--border);
+  margin: 2rem 0;
+}
+
+/* ── Drawing Node ───────────────────────────────────────────────────── */
+.ProseMirror .drawing-wrapper {
+  position: relative;
+  margin: 1rem 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.dark .ProseMirror .drawing-wrapper {
+  background: #0f172a;
+}
+
+.ProseMirror .drawing-wrapper.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.ProseMirror .drawing-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+
+.ProseMirror .drawing-toolbar button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ProseMirror .drawing-toolbar button:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.ProseMirror .drawing-toolbar button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.ProseMirror .drawing-toolbar .separator {
+  width: 1px;
+  height: 18px;
+  background: var(--border-subtle);
+  margin: 0 4px;
+}
+
+.ProseMirror .drawing-canvas {
+  display: block;
+  cursor: crosshair;
+  touch-action: none;
 }

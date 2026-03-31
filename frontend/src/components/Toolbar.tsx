@@ -6,17 +6,26 @@ import {
   AlignLeft,
   AlignRight,
   Bold,
+  ChevronDown,
   Code,
+  Grid3X3,
   Heading1,
   Heading2,
+  Highlighter,
   Image as ImageIcon,
   Italic,
   Link as LinkIcon,
   List,
   ListOrdered,
+  ListTodo,
+  Minus,
+  Paintbrush,
+  Pencil,
   Quote,
   Redo,
   Smile,
+  Strikethrough,
+  Underline as UnderlineIcon,
   Undo,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -54,6 +63,14 @@ const dict = {
     tool_link: 'Inserir Link',
     tool_image: 'Inserir Imagem / Mídia',
     tool_emoji: 'Emoji',
+    tool_underline: 'Sublinhado (Ctrl+U)',
+    tool_strike: 'Tachado',
+    tool_highlight: 'Realçar',
+    tool_task: 'Lista de tarefas',
+    tool_hr: 'Linha horizontal',
+    tool_table: 'Inserir tabela',
+    tool_drawing: 'Desenho livre',
+    tool_format_more: 'Mais formatação',
   },
   en: {
     prompt_link_title: 'Add Link',
@@ -77,6 +94,14 @@ const dict = {
     tool_link: 'Insert Link',
     tool_image: 'Insert Image / Media',
     tool_emoji: 'Emoji',
+    tool_underline: 'Underline (Ctrl+U)',
+    tool_strike: 'Strikethrough',
+    tool_highlight: 'Highlight',
+    tool_task: 'Task List',
+    tool_hr: 'Horizontal Rule',
+    tool_table: 'Insert Table',
+    tool_drawing: 'Freehand Drawing',
+    tool_format_more: 'More formatting',
   },
 };
 
@@ -136,11 +161,161 @@ function ToolBtn({
   );
 }
 
+/* ── Table Grid Picker ──────────────────────────────────────────────── */
+function TableGridPicker({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (rows: number, cols: number) => void;
+  onClose: () => void;
+}) {
+  const [hoverRow, setHoverRow] = useState(0);
+  const [hoverCol, setHoverCol] = useState(0);
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (gridRef.current && !gridRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  const maxRows = 8;
+  const maxCols = 8;
+
+  return (
+    <div
+      ref={gridRef}
+      className="absolute z-50 top-full mt-2 left-0 p-3 rounded-xl shadow-2xl border"
+      style={{ backgroundColor: 'var(--bg-elevated)', borderColor: 'var(--border)' }}
+    >
+      <div className="mb-2 text-center text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+        {hoverRow > 0 ? `${hoverRow} × ${hoverCol}` : 'Selecione'}
+      </div>
+      <div className="grid gap-[3px]" style={{ gridTemplateColumns: `repeat(${maxCols}, 1fr)` }}>
+        {Array.from({ length: maxRows * maxCols }, (_, i) => {
+          const row = Math.floor(i / maxCols) + 1;
+          const col = (i % maxCols) + 1;
+          const isHighlighted = row <= hoverRow && col <= hoverCol;
+          return (
+            <div
+              key={i}
+              className="w-5 h-5 rounded-sm cursor-pointer transition-all duration-100"
+              style={{
+                backgroundColor: isHighlighted ? 'var(--accent)' : 'var(--bg-surface)',
+                border: `1px solid ${isHighlighted ? 'var(--accent)' : 'var(--border)'}`,
+                opacity: isHighlighted ? 1 : 0.5,
+              }}
+              onMouseEnter={() => {
+                setHoverRow(row);
+                setHoverCol(col);
+              }}
+              onClick={() => {
+                onSelect(row, col);
+                onClose();
+              }}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ── Format Dropdown ────────────────────────────────────────────────── */
+function FormatDropdown({
+  editor,
+  t,
+  onClose,
+}: {
+  editor: Editor;
+  t: any;
+  onClose: () => void;
+}) {
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  const items = [
+    {
+      icon: UnderlineIcon,
+      label: t.tool_underline,
+      action: () => editor.chain().focus().toggleUnderline().run(),
+      isActive: editor.isActive('underline'),
+    },
+    {
+      icon: Strikethrough,
+      label: t.tool_strike,
+      action: () => editor.chain().focus().toggleStrike().run(),
+      isActive: editor.isActive('strike'),
+    },
+    {
+      icon: Highlighter,
+      label: t.tool_highlight,
+      action: () => editor.chain().focus().toggleHighlight().run(),
+      isActive: editor.isActive('highlight'),
+    },
+    {
+      icon: Minus,
+      label: t.tool_hr,
+      action: () => editor.chain().focus().setHorizontalRule().run(),
+      isActive: false,
+    },
+  ];
+
+  return (
+    <div
+      ref={dropdownRef}
+      className="absolute z-50 top-full mt-2 right-0 py-1 rounded-xl shadow-2xl border min-w-[180px]"
+      style={{ backgroundColor: 'var(--bg-elevated)', borderColor: 'var(--border)' }}
+    >
+      {items.map((item, i) => (
+        <button
+          key={i}
+          onClick={() => {
+            item.action();
+            onClose();
+          }}
+          className="flex items-center gap-3 w-full px-3 py-2 text-sm transition-all duration-150 rounded-lg mx-1"
+          style={{
+            color: item.isActive ? 'var(--accent)' : 'var(--text-secondary)',
+            width: 'calc(100% - 8px)',
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-surface)';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+          }}
+        >
+          <item.icon className="w-4 h-4" strokeWidth={1.5} />
+          <span className="font-light">{item.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function Toolbar({ editor }: ToolbarProps) {
   if (!editor) return null;
 
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const [isTablePickerOpen, setIsTablePickerOpen] = useState(false);
+  const [isFormatDropdownOpen, setIsFormatDropdownOpen] = useState(false);
   const emojiRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
+  const formatRef = useRef<HTMLDivElement>(null);
   const t = useTranslation(dict);
 
   // Detect current theme from CSS variable set on :root
@@ -275,6 +450,16 @@ export function Toolbar({ editor }: ToolbarProps) {
     setIsEmojiPickerOpen(false);
   };
 
+  const insertTable = useCallback(
+    (rows: number, cols: number) => {
+      editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run();
+    },
+    [editor],
+  );
+
+  const hasFormatActive =
+    editor.isActive('underline') || editor.isActive('strike') || editor.isActive('highlight');
+
   return (
     <div
       className="flex flex-wrap items-center justify-center gap-1 px-3 py-2 z-10 transition-colors duration-300 rounded-2xl"
@@ -285,7 +470,7 @@ export function Toolbar({ editor }: ToolbarProps) {
       }}
     >
       {/* History */}
-      <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-0.5 flex-shrink-0">
         <ToolBtn
           icon={Undo}
           onClick={() => editor.chain().focus().undo().run()}
@@ -303,7 +488,7 @@ export function Toolbar({ editor }: ToolbarProps) {
       <Divider />
 
       {/* Headings */}
-      <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-0.5 flex-shrink-0">
         <ToolBtn
           icon={Heading1}
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
@@ -320,8 +505,8 @@ export function Toolbar({ editor }: ToolbarProps) {
 
       <Divider />
 
-      {/* Formatting */}
-      <div className="flex items-center gap-0.5">
+      {/* Core Formatting */}
+      <div className="flex items-center gap-0.5 flex-shrink-0">
         <ToolBtn
           icon={Bold}
           onClick={() => editor.chain().focus().toggleBold().run()}
@@ -346,12 +531,52 @@ export function Toolbar({ editor }: ToolbarProps) {
           isActive={editor.isActive('blockquote')}
           title={t.tool_quote}
         />
+
+        {/* Format dropdown (Underline, Strike, Highlight, HR) */}
+        <div ref={formatRef} className="relative">
+          <button
+            onClick={() => setIsFormatDropdownOpen(!isFormatDropdownOpen)}
+            title={t.tool_format_more}
+            className={`
+              relative flex items-center justify-center h-8 px-1.5 rounded-lg
+              transition-all duration-200 ease-out flex-shrink-0
+              ${hasFormatActive ? 'text-white shadow-sm' : 'hover:scale-105 active:scale-95'}
+            `}
+            style={
+              hasFormatActive
+                ? { backgroundColor: 'var(--accent, #3b82f6)', color: '#fff' }
+                : { color: 'var(--text-secondary)' }
+            }
+            onMouseEnter={(e) => {
+              if (!hasFormatActive) {
+                (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-elevated)';
+                (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!hasFormatActive) {
+                (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
+              }
+            }}
+          >
+            <Paintbrush className={ICON_SIZE} strokeWidth={ICON_STROKE} />
+            <ChevronDown className="w-3 h-3 ml-0.5" strokeWidth={2} />
+          </button>
+          {isFormatDropdownOpen && (
+            <FormatDropdown
+              editor={editor}
+              t={t}
+              onClose={() => setIsFormatDropdownOpen(false)}
+            />
+          )}
+        </div>
       </div>
 
       <Divider />
 
       {/* Alignment */}
-      <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-0.5 flex-shrink-0">
         <ToolBtn
           icon={AlignLeft}
           onClick={() => editor.chain().focus().setTextAlign('left').run()}
@@ -381,7 +606,7 @@ export function Toolbar({ editor }: ToolbarProps) {
       <Divider />
 
       {/* Lists */}
-      <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-0.5 flex-shrink-0">
         <ToolBtn
           icon={List}
           onClick={() => editor.chain().focus().toggleBulletList().run()}
@@ -394,12 +619,40 @@ export function Toolbar({ editor }: ToolbarProps) {
           isActive={editor.isActive('orderedList')}
           title={t.tool_ordered}
         />
+        <ToolBtn
+          icon={ListTodo}
+          onClick={() => editor.chain().focus().toggleTaskList().run()}
+          isActive={editor.isActive('taskList')}
+          title={t.tool_task}
+        />
       </div>
 
       <Divider />
 
-      {/* Media & Links */}
-      <div className="flex items-center gap-0.5">
+      {/* Table, Drawing, Media & Links */}
+      <div className="flex items-center gap-0.5 flex-shrink-0">
+        {/* Table grid picker */}
+        <div ref={tableRef} className="relative">
+          <ToolBtn
+            icon={Grid3X3}
+            onClick={() => setIsTablePickerOpen(!isTablePickerOpen)}
+            isActive={editor.isActive('table')}
+            title={t.tool_table}
+          />
+          {isTablePickerOpen && (
+            <TableGridPicker
+              onSelect={insertTable}
+              onClose={() => setIsTablePickerOpen(false)}
+            />
+          )}
+        </div>
+
+        <ToolBtn
+          icon={Pencil}
+          onClick={() => (editor.commands as any).insertDrawing()}
+          title={t.tool_drawing}
+        />
+
         <ToolBtn
           icon={LinkIcon}
           onClick={setLink}

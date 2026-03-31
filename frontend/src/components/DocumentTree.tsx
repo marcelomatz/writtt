@@ -1,4 +1,5 @@
 import {
+  BookOpen,
   ChevronDown,
   ChevronRight,
   FileCode2,
@@ -34,7 +35,7 @@ const dict = {
 
 export function DocumentTree() {
   const t = useTranslation(dict);
-  const { primaryDoc, openDocument, leftSidebarCollapsed, toggleLeftSidebar } = useEditorStore();
+  const { primaryDoc, openDocument, leftSidebarCollapsed, toggleLeftSidebar, showChapters, toggleChapters } = useEditorStore();
   const [docs, setDocs] = useState<models.SearchResult[]>([]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
@@ -140,6 +141,24 @@ export function DocumentTree() {
                       ? primaryDoc?.frontmatter?.title || t.untitled
                       : parent.title || t.untitled}
                   </span>
+                )}
+
+                {/* Chapter toggle — only on active doc, expanded sidebar */}
+                {isActive && !leftSidebarCollapsed && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleChapters();
+                    }}
+                    className="ml-auto p-1 rounded-md transition-all duration-200 flex-shrink-0"
+                    style={{
+                      backgroundColor: showChapters ? 'var(--accent)' : 'transparent',
+                      color: showChapters ? '#fff' : 'var(--text-muted)',
+                    }}
+                    title={showChapters ? 'Hide chapters' : 'Show chapters'}
+                  >
+                    <BookOpen className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  </button>
                 )}
               </div>
 

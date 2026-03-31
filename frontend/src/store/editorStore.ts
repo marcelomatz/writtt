@@ -20,6 +20,7 @@ interface EditorState {
   rightSidebarCollapsed: boolean;
   rightSidebarWidth: number;
   sessionCreatedDocId: string | null;
+  showChapters: boolean;
 
   setTheme: (theme: 'light' | 'dark') => void;
   setStats: (stats: EditorStats) => void;
@@ -28,6 +29,7 @@ interface EditorState {
   setHomeFilter: (filter: 'all' | 'backups') => void;
   toggleLeftSidebar: () => void;
   toggleRightSidebar: () => void;
+  toggleChapters: () => void;
   setRightSidebarWidth: (width: number) => void;
   loadDocument: (id: string, force?: boolean) => Promise<void>;
   openDocument: (id: string) => Promise<void>;
@@ -51,6 +53,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   rightSidebarCollapsed: localStorage.getItem('writtt_right_collapsed') === 'true',
   rightSidebarWidth: parseInt(localStorage.getItem('writtt_right_width') || '320', 10),
   sessionCreatedDocId: null,
+  showChapters: false,
 
   setTheme: (theme) => {
     localStorage.setItem('writtt_theme', theme);
@@ -78,6 +81,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       localStorage.setItem('writtt_right_collapsed', String(next));
       return { rightSidebarCollapsed: next };
     }),
+
+  toggleChapters: () =>
+    set((state) => ({ showChapters: !state.showChapters })),
 
   setRightSidebarWidth: (width) => {
     localStorage.setItem('writtt_right_width', String(Math.max(200, Math.min(800, width))));
