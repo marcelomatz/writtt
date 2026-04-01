@@ -14,6 +14,7 @@ Writtt is a desktop editor built for people who think in text. No cloud sync req
 - **Split-screen** — write two documents side by side with a single keybind
 - **Command palette** — `Cmd+K` to search, open, and run tools
 - **Optional AI** — works with Ollama locally (your hardware, your model, zero cloud calls) or BYOK
+- **Vault Security** — built-in encryption with password and quick PIN for sensitive documents
 - **No telemetry** — no pings, no analytics, nothing leaves your machine
 
 ## What it isn't
@@ -84,7 +85,7 @@ writtt/
 
 ## Stack
 
-- **Go 1.21+** — backend, file I/O, SQLite FTS5 indexing
+- **Go 1.21+** — backend, file I/O, SQLite FTS5 indexing, encryption (Argon2id, AES-GCM)
 - **Wails v2** — native window, IPC bridge between Go and React
 - **React + TypeScript + Vite** — frontend
 - **TipTap** — editor core with Markdown extension
@@ -99,11 +100,12 @@ See [`plan.md`](./plan.md) for the detailed phase-by-phase plan.
 
 High-level:
 - [x] Project structure
-- [ ] File I/O + SQLite indexing (Fase 2)
-- [ ] Editor + Split-screen (Fase 3)
-- [ ] Command palette (Fase 4)
-- [ ] Local AI / BYOK (Fase 5)
-- [ ] Image attachments (Fase 6)
+- [x] File I/O + SQLite indexing (Fase 2)
+- [x] Editor + Split-screen (Fase 3)
+- [x] Command palette (Fase 4)
+- [x] Local AI / BYOK (Fase 5)
+- [x] Image attachments (Fase 6)
+- [x] Vault & Security (Fase 7)
 - [ ] Cloud sync (optional, future)
 
 ---
