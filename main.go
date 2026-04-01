@@ -85,13 +85,14 @@ func main() {
 		Title:     "Writtt",
 		Width:     1500,
 		Height:    850,
-		Frameless: true,
+		Frameless: false,
 		AssetServer: &assetserver.Options{
 			Assets:  assets,
 			Handler: NewFileLoader(assets),
 		},
 		BackgroundColour: &options.RGBA{R: 0, G: 0, B: 0, A: 0}, // Transparent background to allow glassmorphism
 		Mac: &mac.Options{
+			TitleBar:             mac.TitleBarHiddenInset(),
 			WebviewIsTransparent: true,
 			WindowIsTranslucent:  true,
 		},

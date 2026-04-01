@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { GetSecurityConfig, IsVaultUnlocked, LockApp, LockVault } from '../wailsjs/go/main/App';
-import { EventsOn } from '../wailsjs/runtime/runtime';
+import { EventsOn, Environment } from '../wailsjs/runtime/runtime';
 import { AIAssistantSidebar } from './components/AIAssistantSidebar';
 import { CommandPalette } from './components/CommandPalette';
 import { DocumentTree } from './components/DocumentTree';
@@ -19,6 +19,8 @@ function App() {
   const { primaryDoc, loadDocument, theme, view, setView, createDocument, saveCurrentDocument } =
     useEditorStore();
 
+  const [os, setOs] = useState<string>('');
+
   // ── Security gate ─────────────────────────────────────────────────────────
   const [locked, setLocked] = useState<boolean | null>(null);
   const [isMidSessionLock, setIsMidSessionLock] = useState(false);
@@ -29,6 +31,9 @@ function App() {
   useEffect(() => {
     (async () => {
       try {
+        const env = await Environment();
+        setOs(env.platform);
+
         const cfg = await GetSecurityConfig();
         const pinEnabled = cfg.vault_pin_enabled ?? false;
         setVaultPINEnabled(pinEnabled);
@@ -123,11 +128,11 @@ function App() {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-transparent overflow-hidden font-sans transition-colors duration-500">
-      <TitleBar />
+      {os === 'darwin' && <TitleBar />}
       <CommandPalette />
       <Modal />
 
-      <div className="flex flex-1 w-full overflow-hidden mt-[40px] px-2 pb-2">
+      <div className={`flex flex-1 w-full overflow-hidden px-2 pb-2 ${os === 'darwin' ? 'mt-[40px]' : 'mt-2'}`}>
         {view === 'home' ? (
           <HomeScreen />
         ) : view === 'settings' ? (

@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AskAssistant, GetLocalModels } from '../../wailsjs/go/main/App';
 import { useTranslation } from '../hooks/useTranslation';
 import { useEditorStore } from '../store/editorStore';
+import { useSecurityStore } from '../store/securityStore';
 
 const dict = {
   pt: {
@@ -28,6 +29,7 @@ const dict = {
     copy_insert: 'Copiar / Inserir',
     generating: 'Gerando...',
     input_placeholder: 'Comando para a IA...',
+    vault_locked: 'O cofre está bloqueado. Desbloqueie o documento para usar IA.',
   },
   en: {
     title: 'AI Assistant',
@@ -43,6 +45,7 @@ const dict = {
     copy_insert: 'Copy / Insert',
     generating: 'Generating...',
     input_placeholder: 'Command for the AI...',
+    vault_locked: 'Vault is locked. Unlock the document to use the AI Assistant.',
   },
 };
 
@@ -59,7 +62,9 @@ export function AIAssistantSidebar() {
     rightSidebarWidth,
     toggleRightSidebar,
     setRightSidebarWidth,
+    sessionCreatedDocId,
   } = useEditorStore();
+  const { vaultUnlocked } = useSecurityStore();
   const [models, setModels] = useState<string[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -93,7 +98,11 @@ export function AIAssistantSidebar() {
     setError('');
 
     try {
-      const context = primaryDoc ? primaryDoc.content : '';
+      const isSecurityLocked = primaryDoc?.frontmatter.is_vault && !useSecurityStore.getState().vaultUnlocked;
+      const sessionNew = primaryDoc?.frontmatter.id === useEditorStore.getState().sessionCreatedDocId;
+      const isActuallyLocked = isSecurityLocked && !sessionNew;
+
+      const context = (primaryDoc && !isActuallyLocked) ? primaryDoc.content : '';
       const response = await AskAssistant(selectedModel, userMsg, context);
 
       setMessages((prev) => [...prev, { role: 'assistant', content: response }]);
@@ -264,6 +273,11 @@ export function AIAssistantSidebar() {
       </div>
 
       <div className="p-4 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
+        {primaryDoc && primaryDoc.frontmatter?.is_vault && !vaultUnlocked && primaryDoc.frontmatter?.id !== sessionCreatedDocId && (
+          <div className="text-xs text-red-500 mb-3 text-center bg-red-500/10 p-2 rounded-lg">
+            {t.vault_locked}
+          </div>
+        )}
         <div className="relative">
           <textarea
             rows={2}
@@ -272,10 +286,12 @@ export function AIAssistantSidebar() {
               backgroundColor: 'var(--bg-base)',
               border: '1px solid var(--border-strong)',
               color: 'var(--text-primary)',
+              opacity: (primaryDoc && primaryDoc.frontmatter?.is_vault && !vaultUnlocked && primaryDoc.frontmatter?.id !== sessionCreatedDocId) ? 0.5 : 1,
             }}
             placeholder={t.input_placeholder}
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            disabled={!!(primaryDoc && primaryDoc.frontmatter?.is_vault && !vaultUnlocked && primaryDoc.frontmatter?.id !== sessionCreatedDocId)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -285,7 +301,7 @@ export function AIAssistantSidebar() {
           />
           <button
             onClick={handleSend}
-            disabled={isGenerating || !input.trim()}
+            disabled={isGenerating || !input.trim() || !!(primaryDoc && primaryDoc.frontmatter?.is_vault && !vaultUnlocked && primaryDoc.frontmatter?.id !== sessionCreatedDocId)}
             className="absolute right-2 bottom-2 p-1.5 rounded-lg text-white bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Send className="w-4 h-4" />
