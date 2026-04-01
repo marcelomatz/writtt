@@ -4,7 +4,7 @@
 
 Writtt is a desktop editor built for people who think in text. No cloud sync required. No account. Your files are plain `.md` files on your disk — you own them.
 
-→ **Website & downloads:** [writtt.app](https://writtt.app)
+→ **Website & downloads:** [writtt](https://writttwebsite.vercel.app)
 
 ---
 
