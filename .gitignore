@@ -33,6 +33,7 @@ Thumbs.db
 
 # Website has its own repo — do not track here
 website/
+website-pro/
 
 # User data (never commit)
 *.writtt/
