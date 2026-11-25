@@ -9,7 +9,6 @@ permissions:
   contents: write
 
 jobs:
-  # ── Cria a release no GitHub (sem assets) ───────────────────────────────────
   create-release:
     name: Create Release
     runs-on: ubuntu-latest
@@ -22,30 +21,26 @@ jobs:
           body: |
             ## Writtt ${{ github.ref_name }}
 
-            ### Download
+            Local-First Distraction-Free Editorial Studio & Zero-Knowledge Cryptographic Vault.
 
-            | Plataforma | Arquivo | Tipo |
-            |------------|---------|------|
-            | 🪟 **Windows** | `writtt-windows-amd64-installer.exe` | Instalador NSIS (recomendado) |
-            | 🪟 **Windows** | `writtt-windows-amd64.exe` | Executável portátil |
-            | 🍎 **macOS** | `writtt-macos-universal.dmg` | Imagem de disco (recomendado) |
-            | 🍎 **macOS** | `writtt-macos-universal.zip` | App compactado |
-            | 🐧 **Linux** | `writtt-linux-amd64.tar.gz` | Binário compactado |
+            ### Downloads
 
-            ### Notas
-            **Windows:** Instalador autoassinado — se o SmartScreen aparecer, clique em _More info → Run anyway_.
+            | Platform | Artifact | Format |
+            | :--- | :--- | :--- |
+            | **Windows (x64)** | `writtt-windows-amd64.exe` | Standalone Native Executable |
+            | **macOS (Universal)** | `writtt-macos-universal.zip` | Native macOS Bundle |
+            | **Linux (x64)** | `writtt-linux-amd64.tar.gz` | Compressed Native Binary |
 
-            **macOS:** App não notarizado — primeira execução: _System Settings → Privacy & Security → Open Anyway_.
-
-            **Linux:** Extraia e execute. Pode ser necessário `chmod +x writtt`.
-
-            Veja o [README](https://github.com/${{ github.repository }}) para instruções completas.
+            ### Notes
+            - **Official Documentation & Release Guide:** https://www.writtt.com
+            - **Windows:** Native WebView2 executable — if SmartScreen appears on first launch, choose _More info -> Run anyway_.
+            - **macOS:** On first launch of an unsigned build, open via _System Settings -> Privacy & Security -> Open Anyway_.
+            - **Linux:** Extract and run `chmod +x writtt && ./writtt`.
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
 
-  # ── Build Windows ────────────────────────────────────────────────────────────
   build-windows:
-    name: Build Windows
+    name: Build Windows (x64)
     needs: create-release
     runs-on: windows-latest
     steps:
@@ -53,104 +48,33 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version-file: 'go.mod'
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
-      - name: Install NSIS
-        shell: pwsh
-        run: |
-          choco install nsis --yes --no-progress
-          $nsisDir = @(
-            'C:\Program Files (x86)\NSIS',
-            'C:\Program Files\NSIS'
-          ) | Where-Object { Test-Path "$_\makensis.exe" } | Select-Object -First 1
-          if (-not $nsisDir) {
-            $nsisDir = Split-Path (
-              [System.Environment]::GetEnvironmentVariable('Path','Machine').Split(';') |
-              Where-Object { Test-Path "$_\makensis.exe" } |
-              Select-Object -First 1
-            )
-          }
-          if (-not $nsisDir) {
-            Write-Error "makensis.exe nao encontrado. Verifique a instalacao do NSIS."
-            exit 1
-          }
-          Write-Host "NSIS dir: $nsisDir"
-          "$nsisDir" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          Write-Host "makensis adicionado ao GITHUB_PATH"
-
-      - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
-
-      - name: Install frontend deps
+      - name: Install & Test Frontend
         working-directory: frontend
-        run: npm ci
+        run: |
+          npm install
+          npx vitest run
+          npm run build
 
-      - name: Patch wails.json productVersion
+      - name: Run Backend Tests
+        run: go test -count=1 ./...
+
+      - name: Build Windows Native Executable (Wails v3)
         shell: pwsh
         run: |
-          $ver = '${{ github.ref_name }}' -replace '^v',''
-          $json = Get-Content wails.json -Raw | ConvertFrom-Json
-          $json.info.productVersion = $ver
-          $json | ConvertTo-Json -Depth 10 | Set-Content wails.json
-          Write-Host "productVersion set to $ver"
+          go build -tags production -ldflags "-s -w -H windowsgui -X main.CurrentVersion=${{ github.ref_name }}" -o writtt-windows-amd64.exe .
 
-      - name: Build Windows (com instalador NSIS)
-        shell: pwsh
-        run: |
-          Write-Host "makensis path: $(Get-Command makensis | Select-Object -ExpandProperty Source)"
-          wails build --nsis --platform windows/amd64 `
-            -ldflags "-X main.CurrentVersion=${{ github.ref_name }}"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload Windows Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: writtt-windows-amd64.exe
 
-      - name: Preparar assets Windows
-        shell: pwsh
-        run: |
-          Write-Host '=== build/ (recursivo) ==='
-          Get-ChildItem build -Recurse -ErrorAction SilentlyContinue | Select-Object FullName, Length | Format-Table
-
-          Copy-Item build\bin\writtt.exe writtt-windows-amd64.exe -ErrorAction Stop
-          Write-Host "Portatil copiado OK: $(Get-Item writtt-windows-amd64.exe | Select-Object -ExpandProperty Length) bytes"
-
-          $installer = Get-ChildItem build -Recurse -ErrorAction SilentlyContinue |
-            Where-Object {
-              $_.Extension -eq '.exe' -and
-              $_.Name -imatch 'writtt' -and
-              $_.Name -imatch 'installer' -and
-              $_.Name -inotmatch 'webview|edge|microsoft'
-            } |
-            Sort-Object LastWriteTime -Descending |
-            Select-Object -First 1
-
-          if ($installer) {
-            Copy-Item $installer.FullName writtt-windows-amd64-installer.exe -ErrorAction Stop
-            Write-Host "Instalador copiado de: $($installer.FullName)"
-          } else {
-            Write-Warning "Instalador NSIS nao encontrado - apenas o exe portatil sera enviado"
-            Get-ChildItem build -Recurse -Filter '*.exe' -ErrorAction SilentlyContinue |
-              Select-Object FullName, Length | Format-Table
-          }
-
-      - name: Upload Windows assets
-        shell: pwsh
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          $files = @('writtt-windows-amd64.exe')
-          if (Test-Path 'writtt-windows-amd64-installer.exe') {
-            $files += 'writtt-windows-amd64-installer.exe'
-            Write-Host "Enviando portatil + instalador"
-          } else {
-            Write-Host "Enviando apenas portatil (instalador nao encontrado)"
-          }
-          foreach ($f in $files) {
-            gh release upload '${{ github.ref_name }}' $f --clobber
-          }
-
-  # ── Build macOS ──────────────────────────────────────────────────────────────
   build-macos:
     name: Build macOS
     needs: create-release
@@ -160,126 +84,62 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version-file: 'go.mod'
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
-      - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
-
-      - name: Install frontend deps
+      - name: Install & Build Frontend
         working-directory: frontend
-        run: npm ci
-
-      - name: Patch wails.json productVersion
-        env:
-          TAG: ${{ github.ref_name }}
         run: |
-          VER="${TAG#v}"
-          python3 -c "
-          import json, sys
-          with open('wails.json', 'r') as f:
-              d = json.load(f)
-          d['info']['productVersion'] = sys.argv[1]
-          with open('wails.json', 'w') as f:
-              json.dump(d, f, indent=2)
-          " "$VER"
-          echo "productVersion set to $VER"
+          npm install
+          npm run build
 
-      - name: Build macOS universal
+      - name: Build macOS Binary (Wails v3)
         run: |
-          wails build --platform darwin/universal \
-            -ldflags "-X main.CurrentVersion=${{ github.ref_name }}"
+          CGO_ENABLED=1 go build -tags production -ldflags "-s -w -X main.CurrentVersion=${{ github.ref_name }}" -o writtt .
+          zip -r writtt-macos-universal.zip writtt
 
-      - name: Criar DMG
-        run: |
-          brew install create-dmg
-          create-dmg \
-            --volname "Writtt" \
-            --window-pos 200 120 \
-            --window-size 600 400 \
-            --icon-size 100 \
-            --icon "writtt.app" 175 190 \
-            --hide-extension "writtt.app" \
-            --app-drop-link 425 190 \
-            "writtt-macos-universal.dmg" \
-            "build/bin/"
-
-      - name: Criar ZIP do .app
-        run: |
-          cd build/bin
-          zip -r ../../writtt-macos-universal.zip writtt.app
-
-      - name: Upload macOS assets
+      - name: Upload macOS Asset
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          files: |
-            writtt-macos-universal.dmg
-            writtt-macos-universal.zip
+          files: writtt-macos-universal.zip
 
-  # ── Build Linux ──────────────────────────────────────────────────────────────
   build-linux:
-    name: Build Linux
+    name: Build Linux (x64)
     needs: create-release
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version-file: 'go.mod'
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
-      - name: Instalar dependencias de sistema (Wails v2 / GTK)
+      - name: Install GTK3 & WebKit2GTK System Libraries
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y \
-            libgtk-3-dev \
-            libwebkit2gtk-4.0-dev \
-            build-essential \
-            pkg-config
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev build-essential pkg-config
 
-      - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
-
-      - name: Install frontend deps
+      - name: Install & Build Frontend
         working-directory: frontend
-        run: npm ci
-
-      - name: Patch wails.json productVersion
-        env:
-          TAG: ${{ github.ref_name }}
         run: |
-          VER="${TAG#v}"
-          python3 -c "
-          import json, sys
-          with open('wails.json', 'r') as f:
-              d = json.load(f)
-          d['info']['productVersion'] = sys.argv[1]
-          with open('wails.json', 'w') as f:
-              json.dump(d, f, indent=2)
-          " "$VER"
-          echo "productVersion set to $VER"
+          npm install
+          npm run build
 
-      - name: Build Linux
+      - name: Build Linux Binary (Wails v3)
         run: |
-          wails build --platform linux/amd64 \
-            -ldflags "-X main.CurrentVersion=${{ github.ref_name }}"
+          CGO_ENABLED=1 go build -tags production -ldflags "-s -w -X main.CurrentVersion=${{ github.ref_name }}" -o writtt .
+          tar -czf writtt-linux-amd64.tar.gz writtt
 
-      - name: Criar tar.gz
-        run: |
-          cd build/bin
-          tar -czf ../../writtt-linux-amd64.tar.gz writtt
-
-      - name: Upload Linux assets
+      - name: Upload Linux Asset
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          files: |
-            writtt-linux-amd64.tar.gz
+          files: writtt-linux-amd64.tar.gz

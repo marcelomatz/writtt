@@ -2,426 +2,797 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log"
+	"mime"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
 
-	"writtt/backend/models"
-	"writtt/backend/network"
-	"writtt/backend/storage"
-	"writtt/backend/tools"
+	wailsapp "github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"writtt/internal/adapters"
+	"writtt/internal/application"
+	"writtt/internal/domain"
 )
 
-// CurrentVersion is set at build time via -ldflags "-X main.CurrentVersion=vX.Y.Z".
-// Falls back to "dev" for local builds.
-var CurrentVersion = "dev"
+var CurrentVersion = "0.2.0"
 
-// App struct
+// App is the thin Layer 4 Wails v3 & HTTP presentation facade for Writtt Studio & Zero-Knowledge Vault.
+// All business rules reside in internal/domain, orchestration in internal/application, and I/O in internal/adapters.
 type App struct {
-	ctx context.Context
+	ctx           context.Context
+	svc           *application.WritttService
+	searchIdx     *adapters.SQLiteSearchIndex
+	emit          func(name string, data any)
+	wailsApp      *wailsapp.App
+	mainWin       wailsapp.Window
+	aiWin         wailsapp.Window
+	aiBridgeMu    sync.RWMutex
+	aiBridgeDocID string
 }
 
-// NewApp creates a new App application struct
 func NewApp() *App {
-	return &App{}
+	return &App{
+		svc: application.NewWritttService(adapters.NewOSCommandRunner(), ""),
+	}
 }
 
-// startup is called when the app starts. The context is saved
-// so we can call the runtime methods
-func (a *App) startup(ctx context.Context) {
+func (a *App) SetWailsRuntime(app *wailsapp.App, win wailsapp.Window) {
+	a.wailsApp = app
+	a.mainWin = win
+}
+
+func (a *App) SetEventEmitter(emit func(name string, data any)) {
+	a.emit = emit
+}
+
+func (a *App) emitEvent(name string, data any) {
+	if a.emit != nil {
+		a.emit(name, data)
+	}
+}
+
+func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 
-	// Initialize SQLite and Index
-	if err := storage.InitDB(); err != nil {
-		log.Printf("Failed to init DB: %v", err)
-	}
-	if err := storage.SyncIndex(); err != nil {
-		log.Printf("Failed to sync index: %v", err)
+	idx, err := adapters.NewSQLiteSearchIndex(a.svc.DataDir())
+	if err != nil {
+		log.Printf("SQLite search index unavailable: %v", err)
+	} else {
+		a.searchIdx = idx
+		a.syncAllIndex()
 	}
 
-	// Start File Watcher
-	go storage.StartWatcher(ctx, func(id string) {
-		runtime.EventsEmit(ctx, "file-updated", id)
-	})
+	_, _ = a.svc.EnsureRSAKeyPair()
+
+	if err := adapters.StartDirectoryWatcher(ctx, a.svc.DataDir(), func(id string) {
+		a.syncDocIndex(id)
+		a.emitEvent("file-updated", id)
+	}); err != nil {
+		log.Printf("Directory watcher unavailable: %v", err)
+	}
 }
 
-// SaveDocument saves a document via the Wails bridge
-func (a *App) SaveDocument(doc models.Document) (string, error) {
-	log.Printf("Saving document: ID=%s, Title=%s\n", doc.Frontmatter.ID, doc.Frontmatter.Title)
-	id, err := storage.WriteDisk(doc)
+func (a *App) Shutdown() {
+	if a.svc != nil {
+		a.svc.Shutdown()
+	}
+	if a.searchIdx != nil {
+		_ = a.searchIdx.Close()
+	}
+}
+
+func (a *App) AttachHTTPRoutes(mux *http.ServeMux) {
+	attachDir := filepath.Join(a.svc.DataDir(), "attachments")
+	adapters.NewHTTPRPCGateway(
+		a,
+		attachDir,
+		"UnlockApp",
+		"UnlockVault",
+		"UnlockVaultWithPIN",
+	).AttachRoutes(mux)
+}
+
+func (a *App) syncDocIndex(id string) {
+	if a.searchIdx == nil || strings.TrimSpace(id) == "" {
+		return
+	}
+	if doc, err := a.svc.ReadDocument(id); err == nil && doc != nil {
+		_ = a.searchIdx.SyncDocument(*doc)
+	}
+}
+
+func (a *App) syncAllIndex() {
+	if a.searchIdx == nil {
+		return
+	}
+	summaries, err := a.svc.ListDocuments("all", 1000)
 	if err != nil {
-		log.Printf("Error saving document: %v\n", err)
+		return
+	}
+	docs := make([]domain.Document, 0, len(summaries))
+	for _, item := range summaries {
+		if doc, readErr := a.svc.ReadDocument(item.ID); readErr == nil && doc != nil {
+			docs = append(docs, *doc)
+		}
+	}
+	_ = a.searchIdx.SyncAll(docs)
+}
+
+// ── Window Shell & Anonymous Release Update Notification ──────────────────
+
+func (a *App) SetWindowTitle(title string) {
+	if a.mainWin != nil && strings.TrimSpace(title) != "" {
+		a.mainWin.SetTitle(title)
+	}
+}
+
+func (a *App) GetVersion() string {
+	return CurrentVersion
+}
+
+// CheckForUpdates checks whether a newer release of Writtt is available for download.
+func (a *App) CheckForUpdates() domain.ReleaseUpdateDTO {
+	return a.svc.CheckForUpdates(CurrentVersion)
+}
+
+// OpenDetachedAIWindow spawns or focuses an independent native OS Wails v3 window for the AI & RAG Studio
+// so the author can drag it freely anywhere on the desktop, including a second physical monitor.
+func (a *App) OpenDetachedAIWindow() bool {
+	if a.wailsApp == nil {
+		return false
+	}
+	a.aiBridgeMu.Lock()
+	defer a.aiBridgeMu.Unlock()
+
+	if a.aiWin != nil {
+		a.aiWin.Show()
+		a.aiWin.Focus()
+		return true
+	}
+
+	win := a.wailsApp.Window.NewWithOptions(wailsapp.WebviewWindowOptions{
+		Title:            "Writtt - Estudio IA & RAG",
+		Width:            520,
+		Height:           800,
+		MinWidth:         380,
+		MinHeight:        500,
+		Frameless:        true,
+		BackgroundColour: wailsapp.NewRGBA(9, 9, 11, 255),
+		Windows: wailsapp.WindowsWindow{
+			NonClientRegionSupport: true,
+		},
+		URL: "/?window=ai-studio",
+	})
+	win.OnWindowEvent(events.Common.WindowClosing, func(_ *wailsapp.WindowEvent) {
+		a.aiBridgeMu.Lock()
+		a.aiWin = nil
+		a.aiBridgeMu.Unlock()
+		a.emitEvent("ai-studio:os-window-closed", "")
+	})
+	a.aiWin = win
+	return true
+}
+
+// CloseDetachedAIWindow hides/closes the detached OS AI window and optionally re-docks it in the main window.
+func (a *App) CloseDetachedAIWindow(redockInMain bool) {
+	a.aiBridgeMu.Lock()
+	win := a.aiWin
+	if win != nil {
+		win.Hide()
+	}
+	a.aiBridgeMu.Unlock()
+	if redockInMain {
+		a.emitEvent("ai-studio:redock-main", "")
+		if a.mainWin != nil {
+			a.mainWin.Focus()
+		}
+	}
+}
+
+// SetDetachedAIAlwaysOnTop pins or unpins the detached AI Studio window above other desktop windows.
+func (a *App) SetDetachedAIAlwaysOnTop(pinned bool) {
+	a.aiBridgeMu.RLock()
+	win := a.aiWin
+	a.aiBridgeMu.RUnlock()
+	if win != nil {
+		win.SetAlwaysOnTop(pinned)
+	}
+}
+
+// SetActiveEditorBridgeDoc synchronizes the active manuscript ID from the main studio window to any detached AI window.
+func (a *App) SetActiveEditorBridgeDoc(docID string) {
+	a.aiBridgeMu.Lock()
+	a.aiBridgeDocID = strings.TrimSpace(docID)
+	a.aiBridgeMu.Unlock()
+	a.emitEvent("ai-studio:active-doc-changed", strings.TrimSpace(docID))
+}
+
+// GetActiveEditorBridgeDoc returns the manuscript ID currently active in the main studio window.
+func (a *App) GetActiveEditorBridgeDoc() string {
+	a.aiBridgeMu.RLock()
+	defer a.aiBridgeMu.RUnlock()
+	return a.aiBridgeDocID
+}
+
+// InsertFromDetachedAIWindow broadcasts an insertable AI passage from the second-monitor window into the main editor.
+func (a *App) InsertFromDetachedAIWindow(text string) {
+	if strings.TrimSpace(text) == "" {
+		return
+	}
+	a.emitEvent("ai-studio:remote-insert", text)
+	if a.mainWin != nil {
+		a.mainWin.Focus()
+	}
+}
+
+// ── Document Studio CRUD, Hierarchy & Split-Screen ─────────────────────────
+
+func (a *App) SaveDocument(doc domain.Document) (string, error) {
+	id, err := a.svc.SaveDocument(doc)
+	if err == nil {
+		a.syncDocIndex(id)
+	}
+	return id, err
+}
+
+func (a *App) AutoSaveDocument(doc domain.Document) (string, error) {
+	id, err := a.svc.AutoSaveDocument(doc)
+	if err == nil {
+		a.syncDocIndex(id)
+	}
+	return id, err
+}
+
+func (a *App) ImportDocumentContent(filename, content string, isVault bool) (string, error) {
+	id, err := a.svc.ImportDocumentContent(filename, content, isVault)
+	if err == nil {
+		a.syncDocIndex(id)
+	}
+	return id, err
+}
+
+func (a *App) GenerateAuthorshipProof(docID string) (*domain.AuthorshipProofDTO, error) {
+	return a.svc.GenerateAuthorshipProof(docID)
+}
+
+func (a *App) ReadDocument(id string) (*domain.Document, error) {
+	return a.svc.ReadDocument(id)
+}
+
+func (a *App) DeleteDocument(id string) error {
+	if err := a.svc.DeleteDocument(id); err != nil {
+		return err
+	}
+	if a.searchIdx != nil {
+		_ = a.searchIdx.DeleteDocument(id)
+	}
+	return nil
+}
+
+func (a *App) UpdateMetadata(id string, tags []string, isVault bool) error {
+	if err := a.svc.UpdateMetadata(id, tags, isVault); err != nil {
+		return err
+	}
+	a.syncDocIndex(id)
+	return nil
+}
+
+func (a *App) RenameDocument(id string, newTitle string) error {
+	if err := a.svc.RenameDocument(id, newTitle); err != nil {
+		return err
+	}
+	a.syncDocIndex(id)
+	return nil
+}
+
+func (a *App) MoveDocument(id string, parentID string, sortOrder int) error {
+	if err := a.svc.MoveDocument(id, parentID, sortOrder); err != nil {
+		return err
+	}
+	a.syncDocIndex(id)
+	return nil
+}
+
+func (a *App) ReorderDocuments(parentID string, orderedIDs []string) error {
+	return a.svc.ReorderDocuments(parentID, orderedIDs)
+}
+
+func (a *App) GetDocumentBreadcrumbs(id string) ([]domain.BreadcrumbItem, error) {
+	return a.svc.GetDocumentBreadcrumbs(id)
+}
+
+func (a *App) ListDocuments(filter string, limit int) ([]domain.SearchResult, error) {
+	return a.svc.ListDocuments(filter, limit)
+}
+
+func (a *App) Search(query string) ([]domain.SearchResult, error) {
+	trimmed := strings.TrimSpace(query)
+	if trimmed == "" || a.searchIdx == nil {
+		return a.svc.Search(query)
+	}
+
+	cleanTagQuery := strings.TrimPrefix(trimmed, "#")
+	ftsResults, ftsErr := a.searchIdx.Search(cleanTagQuery, 50)
+	svcResults, svcErr := a.svc.Search(cleanTagQuery)
+	if ftsErr != nil && svcErr != nil {
+		return nil, svcErr
+	}
+
+	stripHighlights := func(s string) string {
+		s = strings.ReplaceAll(s, "<b>", "")
+		s = strings.ReplaceAll(s, "</b>", "")
+		return strings.TrimSpace(s)
+	}
+
+	merged := make([]domain.SearchResult, 0, len(ftsResults)+len(svcResults))
+	seen := make(map[string]bool, len(ftsResults)+len(svcResults))
+
+	// Primary: SQLite FTS5 ranked full-text results (strictly excludes Vault body plaintext)
+	for _, item := range ftsResults {
+		if item.ID == "" || seen[item.ID] {
+			continue
+		}
+		// If a Vault document matched by title while locked, hide any snippet leak
+		if item.IsVault && !a.svc.IsVaultUnlocked() {
+			item.Snippet = "[Cofre E2EE Selado - AES-256-GCM]"
+		} else {
+			item.Snippet = stripHighlights(item.Snippet)
+		}
+		seen[item.ID] = true
+		merged = append(merged, item)
+	}
+
+	// Secondary: tag matches and decrypted in-memory Vault matches when Vault is unlocked
+	for _, item := range svcResults {
+		if item.ID == "" || seen[item.ID] {
+			continue
+		}
+		seen[item.ID] = true
+		merged = append(merged, item)
+	}
+
+	return merged, nil
+}
+
+func (a *App) CreateSplitDoc(parentID string, title string) (domain.SplitDocResult, error) {
+	res, err := a.svc.CreateSplitDoc(parentID, title)
+	if err == nil && res.SplitID != "" {
+		a.syncDocIndex(res.SplitID)
+	}
+	return res, err
+}
+
+func (a *App) CreateSubChapter(parentID string, title string) (*domain.Document, error) {
+	doc, err := a.svc.CreateSubChapter(parentID, title)
+	if err == nil && doc != nil {
+		a.syncDocIndex(doc.Frontmatter.ID)
+	}
+	return doc, err
+}
+
+func (a *App) AppendSubChapterToParent(subChapterID string) (*domain.Document, error) {
+	doc, err := a.svc.AppendSubChapterToParent(subChapterID)
+	if err == nil && doc != nil {
+		a.syncDocIndex(doc.Frontmatter.ID)
+	}
+	return doc, err
+}
+
+func (a *App) DuplicateDocument(sourceID string, newTitle string) (*domain.Document, error) {
+	doc, err := a.svc.DuplicateDocument(sourceID, newTitle)
+	if err == nil && doc != nil {
+		a.syncDocIndex(doc.Frontmatter.ID)
+	}
+	return doc, err
+}
+
+func (a *App) ListChildren(parentID string) ([]domain.SearchResult, error) {
+	return a.svc.ListChildren(parentID)
+}
+
+func (a *App) MergeToParent(parentID string, mergedContent string) error {
+	err := a.svc.MergeToParent(parentID, mergedContent)
+	if err == nil {
+		a.syncDocIndex(parentID)
+	}
+	return err
+}
+
+func (a *App) SaveAttachment(filename string, base64Data string) (string, error) {
+	return a.svc.SaveAttachment(filename, base64Data)
+}
+
+// ── Version History, Diff & Editorial Analysis ─────────────────────────────
+
+func (a *App) ListDocumentVersions(docID string) ([]domain.DocumentVersion, error) {
+	return a.svc.ListDocumentVersions(docID)
+}
+
+func (a *App) RestoreDocumentVersion(docID string, version int) (*domain.Document, error) {
+	doc, err := a.svc.RestoreDocumentVersion(docID, version)
+	if err == nil {
+		a.syncDocIndex(docID)
+	}
+	return doc, err
+}
+
+func (a *App) DiffDocumentVersions(docID string, fromVersion int, toVersion int) (domain.VersionDiffReport, error) {
+	return a.svc.DiffDocumentVersions(docID, fromVersion, toVersion)
+}
+
+func (a *App) AnalyzeDocumentContent(content string) map[string]any {
+	chapters, stats := domain.ExtractChaptersAndStats(content)
+	return map[string]any{
+		"stats":    stats,
+		"chapters": chapters,
+	}
+}
+
+// ── Security Config, Argon2id Master Password, PIN, Recovery Key & TOTP ────
+
+func (a *App) GetSecurityConfig() (*domain.SecurityConfigDTO, error) {
+	return a.svc.GetSecurityConfig()
+}
+
+func (a *App) SetPassword(currentPassword, newPassword string) error {
+	err := a.svc.SetPassword(currentPassword, newPassword)
+	if err == nil {
+		a.syncAllIndex()
+	}
+	return err
+}
+
+func (a *App) RemovePassword(currentPassword string) error {
+	err := a.svc.RemovePassword(currentPassword)
+	if err == nil {
+		a.syncAllIndex()
+	}
+	return err
+}
+
+func (a *App) UnlockVault(password string) bool {
+	return a.svc.UnlockVault(password)
+}
+
+func (a *App) UnlockApp(password string) bool {
+	return a.svc.UnlockApp(password)
+}
+
+func (a *App) BeginAuthChallenge() domain.AuthChallengeDTO {
+	return a.svc.BeginAuthChallenge()
+}
+
+func (a *App) UnlockWithHumanProof(req domain.HumanUnlockRequest) (*domain.HumanUnlockResult, error) {
+	return a.svc.UnlockWithHumanProof(req)
+}
+
+func (a *App) LockVault() {
+	a.svc.LockVault()
+}
+
+func (a *App) LockApp() {
+	a.svc.LockApp()
+	a.emitEvent("app-locked", "")
+}
+
+func (a *App) IsVaultUnlocked() bool {
+	return a.svc.IsVaultUnlocked()
+}
+
+func (a *App) SetVaultPIN(currentPassword, pin string) error {
+	return a.svc.SetVaultPIN(currentPassword, pin)
+}
+
+func (a *App) RemoveVaultPIN(currentPassword string) error {
+	return a.svc.RemoveVaultPIN(currentPassword)
+}
+
+func (a *App) UnlockVaultWithPIN(pin string) bool {
+	return a.svc.UnlockVaultWithPIN(pin)
+}
+
+func (a *App) GenerateRecoveryKey(currentPassword string) (string, error) {
+	return a.svc.GenerateRecoveryKey(currentPassword)
+}
+
+func (a *App) RecoverVaultWithKey(recoveryKeyFormatted, newPassword string) error {
+	err := a.svc.RecoverVaultWithKey(recoveryKeyFormatted, newPassword)
+	if err == nil {
+		a.syncAllIndex()
+	}
+	return err
+}
+
+func (a *App) SetupVaultTOTP(currentPassword string) (*domain.TOTPEnrollmentBundle, error) {
+	return a.svc.SetupVaultTOTP(currentPassword)
+}
+
+func (a *App) EnableVaultTOTP(currentPassword, code string) error {
+	return a.svc.EnableVaultTOTP(currentPassword, code)
+}
+
+func (a *App) VerifyVaultTOTP(code string) (bool, error) {
+	return a.svc.VerifyVaultTOTP(code)
+}
+
+func (a *App) DisableVaultTOTP(currentPassword string) error {
+	return a.svc.DisableVaultTOTP(currentPassword)
+}
+
+// ── Writtt Express, E2EE Drive Vault & Export Bundles ──────────────────────
+
+func (a *App) SendExpressEnvelope(senderAlias, subject, body, recipientPubKeyPEM string) (*domain.ExpressMessageDTO, error) {
+	return a.svc.SendExpressEnvelope(senderAlias, subject, body, recipientPubKeyPEM)
+}
+
+func (a *App) ListExpressInbox() ([]domain.ExpressMessageDTO, error) {
+	return a.svc.ListExpressInbox()
+}
+
+func (a *App) UnsealExpressMessage(id string) (*domain.ExpressMessageDTO, error) {
+	return a.svc.UnsealExpressMessage(id)
+}
+
+func (a *App) DeleteExpressMessage(id string) error {
+	return a.svc.DeleteExpressMessage(id)
+}
+
+func (a *App) UploadDriveVaultFile(filename, mimeType, base64Data string) (*domain.DriveVaultFile, error) {
+	return a.svc.UploadDriveVaultFile(filename, mimeType, base64Data)
+}
+
+func (a *App) ListDriveVaultFiles() ([]domain.DriveVaultFile, error) {
+	return a.svc.ListDriveVaultFiles()
+}
+
+func (a *App) DecryptDriveVaultFile(id string) (string, error) {
+	return a.svc.DecryptDriveVaultFile(id)
+}
+
+func (a *App) DecryptDriveVaultFileBase64(id string) (string, error) {
+	return a.svc.DecryptDriveVaultFileBase64(id)
+}
+
+func (a *App) DeleteDriveVaultFile(id string) error {
+	return a.svc.DeleteDriveVaultFile(id)
+}
+
+func (a *App) ExportWritttPack(packName, passphrase string) (*domain.ExportBundleResult, error) {
+	return a.svc.ExportWritttPack(packName, passphrase)
+}
+
+func (a *App) ImportWritttPack(base64Pack string, passphrase string) (int, error) {
+	count, err := a.svc.ImportWritttPack(base64Pack, passphrase)
+	if err == nil && count > 0 {
+		a.syncAllIndex()
+	}
+	return count, err
+}
+
+func (a *App) ExportDocumentArtifact(docID string, format string) (*domain.ExportBundleResult, error) {
+	return a.svc.ExportDocumentArtifact(docID, format)
+}
+
+// ── Wails v3 Native OS File Dialog Bridges ─────────────────────────────────
+
+func (a *App) promptSaveDialog(defaultFilename, filterName, filterPattern string) (string, error) {
+	if a.wailsApp == nil {
+		return "", fmt.Errorf("native file dialog unavailable")
+	}
+	dlg := a.wailsApp.Dialog.SaveFile().
+		SetFilename(defaultFilename).
+		AddFilter(filterName, filterPattern)
+	if a.mainWin != nil {
+		dlg.AttachToWindow(a.mainWin)
+	}
+	return dlg.PromptForSingleSelection()
+}
+
+func (a *App) promptOpenDialog(title, filterName, filterPattern string) (string, error) {
+	if a.wailsApp == nil {
+		return "", fmt.Errorf("native file dialog unavailable")
+	}
+	dlg := a.wailsApp.Dialog.OpenFile().
+		SetTitle(title).
+		AddFilter(filterName, filterPattern)
+	if a.mainWin != nil {
+		dlg.AttachToWindow(a.mainWin)
+	}
+	return dlg.PromptForSingleSelection()
+}
+
+func (a *App) SaveExportArtifactDialog(docID string, format string) (string, error) {
+	res, err := a.svc.ExportDocumentArtifact(docID, format)
+	if err != nil {
 		return "", err
 	}
-	storage.SyncSingleFile(id)
-	return id, nil
-}
-
-// UpdateMetadata allows updating tags and vault status without full save
-func (a *App) UpdateMetadata(id string, tags []string, isVault bool) error {
-	doc, err := storage.ReadDisk(id)
+	if a.wailsApp == nil {
+		return res.SavedPath, nil
+	}
+	filterName, filterPattern := "Markdown (*.md)", "*.md"
+	switch strings.ToLower(format) {
+	case "epub":
+		filterName, filterPattern = "EPUB 3.0 E-Book (*.epub)", "*.epub"
+	case "html":
+		filterName, filterPattern = "HTML5 Document (*.html)", "*.html"
+	}
+	targetPath, err := a.promptSaveDialog(res.Filename, filterName, filterPattern)
+	if err != nil || strings.TrimSpace(targetPath) == "" {
+		return "", err
+	}
+	raw, err := base64.StdEncoding.DecodeString(res.Base64Data)
 	if err != nil {
-		return err
+		return "", err
 	}
-	doc.Frontmatter.Tags = tags
-	doc.Frontmatter.IsVault = isVault
-	_, err = storage.WriteDisk(*doc)
-	if err == nil {
-		storage.SyncSingleFile(id)
+	if err := os.WriteFile(targetPath, raw, 0600); err != nil {
+		return "", err
 	}
-	return err
+	return targetPath, nil
 }
 
-// RenameDocument updates only the title
-func (a *App) RenameDocument(id string, newTitle string) error {
-	doc, err := storage.ReadDisk(id)
+func (a *App) ExportWritttPackDialog(packName, passphrase string) (string, error) {
+	res, err := a.svc.ExportWritttPack(packName, passphrase)
 	if err != nil {
-		return err
+		return "", err
 	}
-	doc.Frontmatter.Title = newTitle
-	_, err = storage.WriteDisk(*doc)
-	if err == nil {
-		storage.SyncSingleFile(id)
+	if a.wailsApp == nil {
+		return res.SavedPath, nil
 	}
-	return err
-}
-
-// DeleteDocument completely removes a document
-func (a *App) DeleteDocument(id string) error {
-	return storage.DeleteDocument(id)
-}
-
-// ReadDocument loads a document by ID
-func (a *App) ReadDocument(id string) (*models.Document, error) {
-	return storage.ReadDisk(id)
-}
-
-// Search performs full text search
-func (a *App) Search(query string) ([]models.SearchResult, error) {
-	return storage.Search(query)
-}
-
-// ListDocuments returns documents based on a filter string
-func (a *App) ListDocuments(filter string, limit int) ([]models.SearchResult, error) {
-	return storage.ListDocuments(filter, limit)
-}
-
-// SplitDocResult is returned by CreateSplitDoc.
-// Using a struct ensures Wails maps both fields to the TypeScript layer
-// (Wails only serialises the first non-error value from a multi-return func).
-type SplitDocResult struct {
-	SplitID         string `json:"split_id"`
-	OriginalContent string `json:"original_content"`
-}
-
-// CreateSplitDoc creates a child document linked to a parent,
-// copying the parent's current content into the new split document.
-// The new document gets doc_type="split" and parent_id=parentID.
-// Returns a SplitDocResult with the new split doc ID and the parent's content
-// so the frontend can initialise the diff baseline correctly.
-func (a *App) CreateSplitDoc(parentID string, title string) (SplitDocResult, error) {
-	parent, err := storage.ReadDisk(parentID)
+	targetPath, err := a.promptSaveDialog(res.Filename, "Writtt Encrypted Archive (*.writttpack)", "*.writttpack")
+	if err != nil || strings.TrimSpace(targetPath) == "" {
+		return "", err
+	}
+	raw, err := base64.StdEncoding.DecodeString(res.Base64Data)
 	if err != nil {
-		return SplitDocResult{}, fmt.Errorf("reading parent doc: %w", err)
+		return "", err
 	}
+	if err := os.WriteFile(targetPath, raw, 0600); err != nil {
+		return "", err
+	}
+	return targetPath, nil
+}
 
-	splitDoc := models.Document{
-		Frontmatter: models.Frontmatter{
-			Title:    title,
-			ParentID: parentID,
-			DocType:  "split",
-		},
-		Content: parent.Content, // start as an exact copy of the original
+func (a *App) ImportWritttPackDialog(passphrase string) (int, error) {
+	srcPath, err := a.promptOpenDialog("Import .writttpack Encrypted Archive", "Writtt Encrypted Archive (*.writttpack)", "*.writttpack")
+	if err != nil || strings.TrimSpace(srcPath) == "" {
+		return 0, err
 	}
-	id, err := storage.WriteDisk(splitDoc)
+	raw, err := os.ReadFile(srcPath)
 	if err != nil {
-		return SplitDocResult{}, err
+		return 0, err
 	}
-	storage.SyncSingleFile(id)
-	return SplitDocResult{SplitID: id, OriginalContent: parent.Content}, nil
+	b64 := base64.StdEncoding.EncodeToString(raw)
+	return a.ImportWritttPack(b64, passphrase)
 }
 
-// ListChildren returns sub-documents linked to a given parent ID.
-func (a *App) ListChildren(parentID string) ([]models.SearchResult, error) {
-	return storage.ListChildren(parentID)
-}
-
-// MergeToParent overwrites a parent document's content with the merged result.
-func (a *App) MergeToParent(parentID string, mergedContent string) error {
-	doc, err := storage.ReadDisk(parentID)
+func (a *App) ImportDocumentDialog(isVault bool) (string, error) {
+	srcPath, err := a.promptOpenDialog("Import Manuscript (.md / .txt)", "Markdown & Text (*.md;*.txt)", "*.md;*.txt")
+	if err != nil || strings.TrimSpace(srcPath) == "" {
+		return "", err
+	}
+	raw, err := os.ReadFile(srcPath)
 	if err != nil {
-		return err
+		return "", err
 	}
-	doc.Content = mergedContent
-	_, err = storage.WriteDisk(*doc)
-	if err == nil {
-		storage.SyncSingleFile(parentID)
+	return a.ImportDocumentContent(filepath.Base(srcPath), string(raw), isVault)
+}
+
+func (a *App) UploadDriveFileDialog() (*domain.DriveVaultFile, error) {
+	srcPath, err := a.promptOpenDialog("Seal File into E2EE Drive Vault", "All Files (*.*)", "*.*")
+	if err != nil || strings.TrimSpace(srcPath) == "" {
+		return nil, err
 	}
-	return err
-}
-
-// ScanLocalAI checks if a local LLM is alive
-func (a *App) ScanLocalAI() bool {
-	return network.ScanLocalAI()
-}
-
-// GetLocalModels fetches the list of available locally installed Ollama models.
-func (a *App) GetLocalModels() ([]string, error) {
-	return tools.GetLocalModels()
-}
-
-// AskAssistant queries the local AI assistant. 
-// Uses the provided context (e.g. current document text) and user prompt.
-func (a *App) AskAssistant(model, prompt, contextStr string) (string, error) {
-	return tools.AskAssistant(model, prompt, contextStr)
-}
-
-// SaveAttachment saves a base64 encoded file to disk and returns the relative URL
-func (a *App) SaveAttachment(filename string, base64Data string) (string, error) {
-	return storage.SaveAttachment(filename, base64Data)
-}
-
-// ─── Security / Vault Methods ─────────────────────────────────────────────────
-
-// GetSecurityConfig returns the current security configuration (safe, no hashes).
-func (a *App) GetSecurityConfig() (*storage.SecurityConfigDTO, error) {
-	cfg, err := storage.LoadSecurityConfig()
+	raw, err := os.ReadFile(srcPath)
 	if err != nil {
 		return nil, err
 	}
-	return &storage.SecurityConfigDTO{
-		PasswordEnabled: cfg.PasswordEnabled,
-		VaultPINEnabled: cfg.VaultPINEnabled,
-	}, nil
+	mimeType := mime.TypeByExtension(filepath.Ext(srcPath))
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+	b64 := base64.StdEncoding.EncodeToString(raw)
+	return a.svc.UploadDriveVaultFile(filepath.Base(srcPath), mimeType, b64)
 }
 
-// SetVaultPIN defines or changes the vault PIN.
-// Requires the current app password for authorization.
-// The PIN is hashed with Argon2id and stored separately from the app password.
-func (a *App) SetVaultPIN(currentPassword, pin string) error {
-	if pin == "" {
-		return fmt.Errorf("o PIN não pode estar vazio")
-	}
-
-	cfg, err := storage.LoadSecurityConfig()
+func (a *App) SaveDecryptedDriveFileDialog(id string) (string, error) {
+	b64, err := a.svc.DecryptDriveVaultFileBase64(id)
 	if err != nil {
-		return err
+		return "", err
 	}
-
-	// Require the app password to authorize PIN changes
-	if cfg.PasswordEnabled && cfg.PasswordHash != "" {
-		if !storage.VerifyPassword(currentPassword, cfg.PasswordHash) {
-			return fmt.Errorf("senha incorreta")
+	files, _ := a.svc.ListDriveVaultFiles()
+	defaultName := "decrypted.bin"
+	for _, f := range files {
+		if f.ID == id {
+			defaultName = f.Filename
+			break
 		}
 	}
-
-	hash, err := storage.HashPassword(pin)
+	targetPath, err := a.promptSaveDialog(defaultName, "All Files (*.*)", "*.*")
+	if err != nil || strings.TrimSpace(targetPath) == "" {
+		return "", err
+	}
+	raw, err := base64.StdEncoding.DecodeString(b64)
 	if err != nil {
-		return fmt.Errorf("hashing PIN: %w", err)
+		return "", err
 	}
-
-	cfg.VaultPINEnabled = true
-	cfg.VaultPINHash = hash
-	return storage.SaveSecurityConfig(cfg)
+	if err := os.WriteFile(targetPath, raw, 0600); err != nil {
+		return "", err
+	}
+	return targetPath, nil
 }
 
-// RemoveVaultPIN disables the vault PIN.
-// Requires the current app password for authorization.
-func (a *App) RemoveVaultPIN(currentPassword string) error {
-	cfg, err := storage.LoadSecurityConfig()
-	if err != nil {
-		return err
-	}
+// ── Custom Dictionary, Local AI Assistant, ZKP & COE Algorithms Lab ────────
 
-	if !cfg.VaultPINEnabled {
-		return nil // already disabled
-	}
-
-	// Require the app password to authorize PIN removal
-	if cfg.PasswordEnabled && cfg.PasswordHash != "" {
-		if !storage.VerifyPassword(currentPassword, cfg.PasswordHash) {
-			return fmt.Errorf("senha incorreta")
-		}
-	}
-
-	cfg.VaultPINEnabled = false
-	cfg.VaultPINHash = ""
-	return storage.SaveSecurityConfig(cfg)
+func (a *App) GetCustomDictionary() ([]string, error) {
+	return a.svc.GetCustomDictionary()
 }
 
-// UnlockVaultWithPIN verifies the PIN and unlocks the vault (stores decryption key in memory).
-// The vault encryption key is the app password; the PIN is just a gate to load that key from memory/config.
-// NOTE: The vault decryption key is the app password. The PIN only gates access to it in-session.
-func (a *App) UnlockVaultWithPIN(pin string) bool {
-	// L-3: enforce brute-force lockout.
-	if err := storage.CheckBruteForce(); err != nil {
-		log.Printf("UnlockVaultWithPIN blocked: %v", err)
-		return false
-	}
-
-	cfg, err := storage.LoadSecurityConfig()
-	if err != nil || !cfg.VaultPINEnabled || cfg.VaultPINHash == "" {
-		return false
-	}
-
-	if !storage.VerifyPassword(pin, cfg.VaultPINHash) {
-		storage.RecordAuthFailure()
-		return false
-	}
-
-	storage.RecordAuthSuccess()
-	// PIN verified — re-activate the vault key stored at startup.
-	storage.RestoreVaultKey()
-	return storage.IsVaultUnlocked()
+func (a *App) AddDictionaryWord(word string) ([]string, error) {
+	return a.svc.AddDictionaryWord(word)
 }
 
-// SetPassword enables or changes the app password.
-// If a password was previously set, currentPassword must be provided and correct.
-// All vault documents will be re-encrypted with the new password.
-func (a *App) SetPassword(currentPassword, newPassword string) error {
-	if newPassword == "" {
-		return fmt.Errorf("a nova senha não pode estar vazia")
-	}
-
-	cfg, err := storage.LoadSecurityConfig()
-	if err != nil {
-		return err
-	}
-
-	// If password was already enabled, verify current before allowing change
-	if cfg.PasswordEnabled && cfg.PasswordHash != "" {
-		if !storage.VerifyPassword(currentPassword, cfg.PasswordHash) {
-			return fmt.Errorf("senha atual incorreta")
-		}
-	}
-
-	// Re-encrypt vault documents (old → new password)
-	oldPassword := ""
-	if cfg.PasswordEnabled {
-		oldPassword = currentPassword
-	}
-	if err := storage.ReEncryptAllVaultDocs(oldPassword, newPassword); err != nil {
-		log.Printf("SetPassword: re-encryption error: %v", err)
-	}
-
-	hash, err := storage.HashPassword(newPassword)
-	if err != nil {
-		return fmt.Errorf("hashing password: %w", err)
-	}
-
-	cfg.PasswordEnabled = true
-	cfg.PasswordHash = hash
-	if err := storage.SaveSecurityConfig(cfg); err != nil {
-		return err
-	}
-
-	// Unlock immediately so the user doesn't have to re-enter
-	storage.SetActivePassword(newPassword)
-	return nil
+func (a *App) RemoveDictionaryWord(word string) ([]string, error) {
+	return a.svc.RemoveDictionaryWord(word)
 }
 
-// RemovePassword disables password protection.
-// Requires the current password for verification.
-// All vault documents will be decrypted to plaintext.
-func (a *App) RemovePassword(currentPassword string) error {
-	cfg, err := storage.LoadSecurityConfig()
-	if err != nil {
-		return err
-	}
-
-	if !cfg.PasswordEnabled {
-		return nil // already disabled
-	}
-
-	if !storage.VerifyPassword(currentPassword, cfg.PasswordHash) {
-		return fmt.Errorf("senha incorreta")
-	}
-
-	// Decrypt all vault documents
-	if err := storage.ReEncryptAllVaultDocs(currentPassword, ""); err != nil {
-		log.Printf("RemovePassword: decryption error: %v", err)
-	}
-
-	cfg.PasswordEnabled = false
-	cfg.PasswordHash = ""
-	if err := storage.SaveSecurityConfig(cfg); err != nil {
-		return err
-	}
-
-	storage.ClearActivePassword()
-	storage.ClearVaultKey() // also wipe the stored key
-	return nil
+func (a *App) ScanLocalAI() bool {
+	return a.svc.ScanLocalAI()
 }
 
-// UnlockVault verifies the password and stores it in memory, giving access to vault documents.
-func (a *App) UnlockVault(password string) bool {
-	// L-3: enforce brute-force lockout.
-	if err := storage.CheckBruteForce(); err != nil {
-		log.Printf("UnlockVault blocked: %v", err)
-		return false
-	}
-
-	cfg, err := storage.LoadSecurityConfig()
-	if err != nil || !cfg.PasswordEnabled {
-		return false
-	}
-
-	if !storage.VerifyPassword(password, cfg.PasswordHash) {
-		storage.RecordAuthFailure()
-		return false
-	}
-
-	storage.RecordAuthSuccess()
-	storage.SetActivePassword(password)
-	storage.StoreVaultKey(password) // allow PIN restore later
-	return true
+func (a *App) GetLocalModels() ([]string, error) {
+	return a.svc.GetLocalModels()
 }
 
-// UnlockApp verifies the password and marks the app as open (startup gate).
-// Also stores the vault key so PIN-based restore works mid-session.
-func (a *App) UnlockApp(password string) bool {
-	// L-3: enforce brute-force lockout on startup gate too.
-	if err := storage.CheckBruteForce(); err != nil {
-		log.Printf("UnlockApp blocked: %v", err)
-		return false
-	}
-
-	cfg, err := storage.LoadSecurityConfig()
-	if err != nil || !cfg.PasswordEnabled {
-		return false
-	}
-
-	if !storage.VerifyPassword(password, cfg.PasswordHash) {
-		storage.RecordAuthFailure()
-		return false
-	}
-
-	storage.RecordAuthSuccess()
-	storage.SetAppUnlocked(true)
-	storage.StoreVaultKey(password) // stored for PIN-based vault re-unlock
-	return true
+func (a *App) GetLocalModelCapabilities() ([]domain.AIModelCapabilityDTO, error) {
+	return a.svc.GetLocalModelCapabilities()
 }
 
-// LockVault removes the active password from memory, locking vault documents.
-func (a *App) LockVault() {
-	storage.ClearActivePassword()
+func (a *App) AskAssistant(model, prompt, contextStr string) (string, error) {
+	return a.svc.AskAssistant(model, prompt, contextStr)
 }
 
-// LockApp locks the whole application: clears the vault key, revokes the
-// app-unlocked flag, and emits "app-locked" so the frontend shows LockScreen.
-func (a *App) LockApp() {
-	storage.ClearActivePassword()
-	storage.SetAppUnlocked(false)
-	runtime.EventsEmit(a.ctx, "app-locked")
+func (a *App) ChatWithAssistant(model string, history []domain.AIChatMessage, docContext string, selectedExcerpt string, useRAG bool) (*domain.AIChatReplyDTO, error) {
+	return a.svc.ChatWithAssistant(model, history, docContext, selectedExcerpt, useRAG)
 }
 
-// IsVaultUnlocked returns whether the vault is currently accessible.
-func (a *App) IsVaultUnlocked() bool {
-	return storage.IsVaultUnlocked()
+func (a *App) FreeChatWithAssistant(model string, history []domain.AIChatMessage, includeDocContext bool, docContext string, useRAG bool) (*domain.AIChatReplyDTO, error) {
+	return a.svc.FreeChatWithAssistant(model, history, includeDocContext, docContext, useRAG)
 }
 
-// GetVersion returns the application version injected at build time.
-func (a *App) GetVersion() string {
-	return CurrentVersion
+func (a *App) SearchWorkspaceRAG(query string, topK int) ([]domain.RAGSearchResult, error) {
+	return a.svc.SearchWorkspaceRAG(query, topK)
+}
+
+func (a *App) ListTrustedDevices() ([]domain.TrustedDeviceDTO, error) {
+	return a.svc.ListTrustedDevices()
+}
+
+func (a *App) RegisterTrustedDevice(label string) (*domain.TrustedDeviceDTO, error) {
+	return a.svc.RegisterTrustedDevice(label)
+}
+
+func (a *App) RevokeTrustedDevice(id string) ([]domain.TrustedDeviceDTO, error) {
+	return a.svc.RevokeTrustedDevice(id)
+}
+
+func (a *App) GetOperatorAlias() (domain.AliasConfigDTO, error) {
+	return a.svc.GetOperatorAlias()
+}
+
+func (a *App) SetOperatorAlias(alias string) (domain.AliasConfigDTO, error) {
+	return a.svc.SetOperatorAlias(alias)
+}
+
+func (a *App) SimulateZKPRound(round int, challengePath string) domain.ZKPSoundnessProof {
+	return a.svc.SimulateZKPRound(round, challengePath)
+}
+
+func (a *App) GetAlgorithmsLabReport() domain.WritttAlgorithmsReport {
+	return a.svc.BuildAlgorithmsReport()
 }

@@ -1,120 +1,74 @@
 # Writtt
 
-**A local-first writing tool that stays out of your way.**
+**Local-First Distraction-Free Editorial Studio & Zero-Knowledge Cryptographic Vault.**
 
-Writtt is a desktop editor built for people who think in text. No cloud sync required. No account. Your files are plain `.md` files on your disk — you own them.
+Writtt is a standalone open-source desktop writing studio engineered for authors, researchers, journalists, and creators who demand serene rich-text + Markdown authoring alongside mathematical Zero-Knowledge protection for unpublished manuscripts — 100% offline, with zero accounts, zero cloud telemetry, and zero subscriptions.
 
-→ **Website & downloads:** [writtt](https://writttwebsite.vercel.app)
-
----
-
-## What it is
-
-- **Local-first** — everything lives in `~/.writtt/data/` as plain Markdown files
-- **Split-screen** — write two documents side by side with a single keybind
-- **Command palette** — `Cmd+K` to search, open, and run tools
-- **Optional AI** — works with Ollama locally (your hardware, your model, zero cloud calls) or BYOK
-- **Vault Security** — built-in encryption with password and quick PIN for sensitive documents
-- **No telemetry** — no pings, no analytics, nothing leaves your machine
-
-## What it isn't
-
-- A Notion replacement — Writtt doesn't do databases or wikis
-- A cloud product (yet) — sync is on the roadmap but will always be optional
-- A subscription — the desktop app is free and always will be
+- **Official Website & User Documentation:** https://www.writtt.com
+- **Architecture Reference:** [ARCHITECTURE.md](./ARCHITECTURE.md)
+- **Automated Test Coverage:** [TEST_COVERAGE.md](./TEST_COVERAGE.md)
 
 ---
 
-## Building from Source
+## Core Capabilities
+
+- **Rich Editorial Studio + Portable Markdown** — Powered by Tiptap ProseMirror + `tiptap-markdown`, featuring floating selection formatting, hover action tooltips, live-filtered Slash Commands (`/h1`, `/task`, `/ai`, `/draw`), contextual GFM tables, `lowlight` syntax code blocks, vector SVG drawing canvas, drag-and-drop image attachments, Zen mode (`Alt+Z`), paragraph focus mode, and stateful snapshot saving (`Ctrl+S`).
+- **Hierarchical Manuscripts & Side-by-Side Comparison** — Organize long-form books into blank linked sub-chapters (with dual-pane parent comparison and one-click append to parent) or create standalone copies to explore alternative directions without touching the original draft.
+- **Zero-Knowledge Local Vault** — Authenticated **Argon2id** (`m=64MB, t=3, p=2`) + **AES-256-GCM** encryption at rest, session-aware Quick PIN, 256-bit Recovery Key (`rk:`), RFC 6238 TOTP 2FA guarded by a 64-bit anti-replay window, progressive HMAC-sealed brute-force lockouts (`20s` / `60s`), human-presence challenge verification (`HumanAuthGuard`), automatic inactivity lock, and RAM key zeroization on shutdown.
+- **Pre-Publication Authorship Proof** — Issue UTC-timestamped SHA-256 authorship certificates anchored in an immutable SHA-256 `ForensicChain` before sharing drafts with editors or publishers.
+- **Dedicated AI & RAG Studio (Docked, Floating, or 2nd-Monitor OS Window)** — Optional integration with local **Ollama** (`127.0.0.1:11434`) running in a strict text-only sandbox (zero filesystem or shell access), automatic high-entropy secret redaction, separated conversational Chatbot (`Chatbot IA`) and Editorial AI (`Editor IA`) with selective reply forwarding, inline selection `/ai` actions with visual diff highlight, and offline L2 cosine-similarity RAG across unlocked works.
+- **Publication & Portable Archives** — Export manuscripts via native OS dialogs to **EPUB 3.0 (`.epub`)**, **HTML5 (`.html`)**, **Markdown (`.md`)**, or passphrase-sealed **`.writttpack`** archives, plus RSA-2048 OAEP hybrid envelopes (**Writtt Express**) and an **E2EE File Locker**.
+- **Clean 4-Layer Hexagonal Architecture** — Symmetrical `domain -> application -> adapters -> presentation` separation across both Go and TypeScript with strict Dependency Inversion, Zero Emojis UI, multi-language support (`pt-BR`, `en-US`, `es-ES`), and 11 color themes in Dark & Light modes.
+
+---
+
+## Project Layout
+
+```text
+writtt/
+├── main.go                     # Wails v3 application bootstrap & frameless window configuration
+├── app.go                      # Thin Layer 4 Wails v3 facade, multi-monitor AI window & OS dialogs
+├── internal/
+│   ├── domain/                 # Layer 1: Pure entities, ports, SemVer, DAG, RAG, ZKP & XHTML
+│   ├── application/            # Layer 2: Capability use-cases & algorithmic orchestration
+│   └── adapters/               # Layer 3: Platform HAL, SQLite WAL/FTS5 index & reflection HTTP RPC
+└── frontend/src/
+    ├── domain/                 # Layer 1: Pure TypeScript models, editorial stats, i18n & Markdown/SVG
+    ├── application/            # Layer 2: StudioGatewayPort, workspace state & Vault-safe AI store
+    ├── adapters/               # Layer 3: Wails v3 IPC client with HTTP fallback & O(1) LRUCache
+    ├── presentation/           # Layer 4: Standalone shell, Tiptap studio, AI Studio & settings views
+    ├── styles/writtt.css       # Semantic stylesheet built on Specular Obsidian & Alabaster tokens
+    └── main.ts                 # Composition root, event coordinator & keyboard controller
+```
+
+---
+
+## Building & Testing from Source
 
 ### Prerequisites
 
-| Tool | Minimum version |
-|---|---|
-| [Go](https://go.dev/dl/) | 1.21 |
-| [Node.js](https://nodejs.org/) | 18 |
-| [Wails CLI](https://wails.io/docs/gettingstarted/installation) | 2.x |
+| Tool | Version |
+| :--- | :--- |
+| [Go](https://go.dev/dl/) | 1.25+ |
+| [Node.js](https://nodejs.org/) | 22+ |
+| WebView2 Runtime | Pre-installed on Windows 10/11 |
+
+### Verify & Build
 
 ```bash
-# Install Wails CLI once
-go install github.com/wailsapp/wails/v2/cmd/wails@latest
+# 1. Install frontend dependencies, run Vitest unit tests, and bundle assets
+cd frontend
+npm install
+npx vitest run
+npm run build
+cd ..
+
+# 2. Run Go unit & integration test suites across all 4 layers
+go test -count=1 -cover ./...
+
+# 3. Compile native desktop executable
+go build -ldflags "-s -w -X main.CurrentVersion=v0.2.0" -o writtt.exe .
 ```
-
-### Clone & Run
-
-```bash
-git clone https://github.com/marcelomatz/writtt.git
-cd writtt
-
-# Development mode (hot reload)
-wails dev
-
-# Production build
-wails build
-```
-
-The binary will be in `build/bin/`.
-
-### Why build it yourself?
-
-When you build from source, no company is between you and the code. You can read every line, verify what network calls exist (none at runtime), and distribute your own binary to people you trust.
-
----
-
-## Project Structure
-
-```
-writtt/
-├── app.go              # Wails IPC bindings exposed to the frontend
-├── main.go             # App entry point, window config
-├── backend/
-│   ├── models/         # Document, SearchResult, Frontmatter structs
-│   ├── storage/        # .md file I/O, YAML frontmatter, SQLite FTS5
-│   ├── tools/          # Text-to-Tool modules (email, LLM, parser)
-│   └── network/        # Local AI health checks (Ollama ping)
-├── frontend/
-│   └── src/
-│       ├── components/ # Editor, Workspace (split-screen), CommandPalette
-│       ├── store/      # Zustand (editorStore, paletteStore)
-│       ├── hooks/      # useDebounce, useGlobalKeymap
-│       └── utils/      # commandParser
-└── website/            # → separate repo: github.com/marcelomatz/writtt-website
-```
-
----
-
-## Stack
-
-- **Go 1.21+** — backend, file I/O, SQLite FTS5 indexing, encryption (Argon2id, AES-GCM)
-- **Wails v2** — native window, IPC bridge between Go and React
-- **React + TypeScript + Vite** — frontend
-- **TipTap** — editor core with Markdown extension
-- **Zustand** — frontend state
-- **SQLite FTS5** — local full-text search
-
----
-
-## Roadmap
-
-See [`plan.md`](./plan.md) for the detailed phase-by-phase plan.
-
-High-level:
-- [x] Project structure
-- [x] File I/O + SQLite indexing (Fase 2)
-- [x] Editor + Split-screen (Fase 3)
-- [x] Command palette (Fase 4)
-- [x] Local AI / BYOK (Fase 5)
-- [x] Image attachments (Fase 6)
-- [x] Vault & Security (Fase 7)
-- [ ] Cloud sync (optional, future)
-
----
-
-## Contributing
-
-Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a PR.
-
-Short version: open an issue first, keep PRs focused, respect the privacy constraints.
 
 ---
 

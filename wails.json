@@ -1,4 +1,4 @@
-{
+﻿{
   "$schema": "https://wails.io/schemas/config.v2.json",
   "name": "Writtt",
   "outputfilename": "writtt",
@@ -8,12 +8,13 @@
   "frontend:dev:serverUrl": "auto",
   "author": {
     "name": "Marcelo Matzembacher",
-    "email": "omarcelomatz@gmail.com"
+    "email": "contato@marcelomatz.com.br"
   },
   "info": {
+    "companyName": "Writtt",
     "productName": "Writtt",
-    "productVersion": "0.1.3",
-    "copyright": "© 2025 Marcelo Matzembacher",
-    "comments": "Editor de textos com IA local"
+    "productVersion": "0.2.0",
+    "copyright": "Copyright 2026 Marcelo Matzembacher",
+    "comments": "Local-first distraction-free Editorial Studio & Zero-Knowledge Cryptographic Vault"
   }
 }

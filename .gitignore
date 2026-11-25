@@ -9,7 +9,7 @@ node_modules/
 frontend/dist/
 frontend/node_modules/
 
-# Go
+# Go & Native Binaries
 *.exe
 *.exe~
 *.dll
@@ -17,9 +17,22 @@ frontend/node_modules/
 *.dylib
 *.test
 *.out
+coverage.txt
 
 # Wails
 wailsjs/
+
+# Local Development & Agent Environment (never push to public repository)
+.local-dev/
+.agents/
+AGENTS.md
+GEMINI.md
+CLAUDE.md
+skills-lock.json
+*.ps1
+*.pfx
+.env
+.env.*
 
 # Editor
 .vscode/
@@ -31,7 +44,7 @@ wailsjs/
 .DS_Store
 Thumbs.db
 
-# Website has its own repo — do not track here
+# Separate repositories
 website/
 website-pro/
 

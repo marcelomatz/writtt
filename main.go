@@ -1,114 +1,67 @@
 package main
 
 import (
+	"context"
 	"embed"
+	"log"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 
-	"writtt/backend/storage"
-
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/options/mac"
-	"github.com/wailsapp/wails/v2/pkg/options/windows"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
-type FileLoader struct {
-	frontendAssets http.FileSystem
-}
-
-func NewFileLoader(assetsFs embed.FS) *FileLoader {
-	return &FileLoader{
-		frontendAssets: http.FS(assetsFs),
-	}
-}
-
-// ServeHTTP intercepts requests for "/attachments/" and serves local files
-func (h *FileLoader) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	if strings.HasPrefix(req.URL.Path, "/attachments/") {
-		// req.URL.Path is already URL-decoded by net/http, so spaces and
-		// other encoded chars are already resolved. Use it directly.
-		filename := strings.TrimPrefix(req.URL.Path, "/attachments/")
-		path := filepath.Join(storage.GetAppDir(), "attachments", filename)
-
-		// Security: resolve the canonical path and verify it stays inside
-		// the attachments directory (defends against path traversal).
-		attachDir := filepath.Clean(filepath.Join(storage.GetAppDir(), "attachments"))
-		resolvedPath := filepath.Clean(path)
-		if !strings.HasPrefix(resolvedPath, attachDir+string(filepath.Separator)) {
-			res.WriteHeader(http.StatusBadRequest)
-			res.Write([]byte("Bad Request"))
-			return
-		}
-
-		data, err := os.ReadFile(path)
-		if err != nil {
-			res.WriteHeader(http.StatusNotFound)
-			res.Write([]byte("Not Found"))
-			return
-		}
-
-		// Set content type based on extension
-		ext := filepath.Ext(filename)
-		mimeType := "application/octet-stream" // Default
-		switch strings.ToLower(ext) {
-		case ".jpg", ".jpeg":
-			mimeType = "image/jpeg"
-		case ".png":
-			mimeType = "image/png"
-		case ".gif":
-			mimeType = "image/gif"
-		case ".svg":
-			mimeType = "image/svg+xml"
-		case ".pdf":
-			mimeType = "application/pdf"
-		}
-
-		res.Header().Set("Content-Type", mimeType)
-		res.Write(data)
-		return
-	}
-	// Fallback to serving embedded frontend assets
-	http.FileServer(h.frontendAssets).ServeHTTP(res, req)
-}
-
 func main() {
-	app := NewApp()
+	appService := NewApp()
+	appService.Startup(context.Background())
 
-	err := wails.Run(&options.App{
-		Title:     "Writtt",
-		Width:     1500,
-		Height:    850,
-		Frameless: false,
-		AssetServer: &assetserver.Options{
-			Assets:  assets,
-			Handler: NewFileLoader(assets),
+	apiMux := http.NewServeMux()
+	appService.AttachHTTPRoutes(apiMux)
+	assetHandler := application.AssetFileServerFS(assets)
+
+	wailsApp := application.New(application.Options{
+		Name:        "Writtt",
+		Description: "Local-first distraction-free Editorial Studio & Zero-Knowledge Cryptographic Vault",
+		Services: []application.Service{
+			application.NewService(appService),
 		},
-		BackgroundColour: &options.RGBA{R: 0, G: 0, B: 0, A: 0}, // Transparent background to allow glassmorphism
-		Mac: &mac.Options{
-			TitleBar:             mac.TitleBarHiddenInset(),
-			WebviewIsTransparent: true,
-			WindowIsTranslucent:  true,
+		Assets: application.AssetOptions{
+			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if strings.HasPrefix(r.URL.Path, "/api/writtt/") || strings.HasPrefix(r.URL.Path, "/attachments/") {
+					apiMux.ServeHTTP(w, r)
+					return
+				}
+				assetHandler.ServeHTTP(w, r)
+			}),
 		},
-		Windows: &windows.Options{
-			WebviewIsTransparent:              true,
-			WindowIsTranslucent:               true,
-			BackdropType:                      windows.Mica,
-			DisableFramelessWindowDecorations: false,
-		},
-		OnStartup: app.startup,
-		Bind: []interface{}{
-			app,
+		OnShutdown: func() {
+			appService.Shutdown()
 		},
 	})
 
-	if err != nil {
-		println("Error:", err.Error())
+	appService.SetEventEmitter(func(name string, data any) {
+		wailsApp.Event.Emit(name, data)
+	})
+
+	mainWin := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+		Title:            "Writtt - Editorial Studio & Zero-Knowledge Vault",
+		Width:            1440,
+		Height:           900,
+		MinWidth:         880,
+		MinHeight:        580,
+		Frameless:        true,
+		BackgroundColour: application.NewRGBA(9, 9, 11, 255),
+		Windows: application.WindowsWindow{
+			NonClientRegionSupport: true,
+		},
+		URL: "/",
+	})
+
+	appService.SetWailsRuntime(wailsApp, mainWin)
+
+	if err := wailsApp.Run(); err != nil {
+		log.Fatal(err)
 	}
 }

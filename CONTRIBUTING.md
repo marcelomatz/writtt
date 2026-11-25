@@ -1,65 +1,52 @@
 # Contributing to Writtt
 
-Thanks for taking the time to contribute. This document explains how.
+Thank you for contributing to Writtt. This guide explains the architecture rules and local workflow.
 
 ---
 
-## Philosophy
+## Engineering Principles
 
-Writtt is local-first, privacy-first. Every contribution should respect these constraints:
+Writtt is a local-first, privacy-first open-source studio. Every contribution must preserve these invariants:
 
-- No telemetry, no tracking, no analytics
-- No mandatory network requests at runtime
-- All user data stays in `~/.writtt/` on the user's machine
+- **Zero Telemetry & Zero Mandatory Cloud**: No analytics, tracking pixels, or hidden background uploads. The only optional network request is checking the public `version.json` / GitHub Releases manifest when update notifications are enabled.
+- **Strict 4-Layer Hexagonal Architecture**: Respect inward-only dependencies (`domain <- application <- adapters <- presentation`) in both Go (`internal/`) and TypeScript (`frontend/src/`). Layer 1 (`domain`) and Layer 2 (`application`) must never import Layer 3 (`adapters`) or Layer 4 (`presentation`).
+- **Zero-Knowledge Vault Isolation**: Vault-protected manuscripts (`is_vault: true`) must never write plaintext into SQLite FTS5 (`documents_fts`) or browser `localStorage`.
+- **Zero Emojis Policy**: Do not insert Unicode emojis in UI components, logs, comments, or documentation. Use crisp vector SVG icons (`@matz/ui/icons`).
 
 ---
 
-## Before Opening a PR
+## Before Opening a Pull Request
 
-1. **Open an issue first** for anything beyond small bug fixes. This avoids wasted effort.
-2. **One concern per PR.** Don't bundle unrelated changes.
-3. Make sure `wails build` completes without errors.
+1. **Open an issue first** for architectural changes or new capabilities.
+2. **One concern per PR** with clear test coverage.
+3. Ensure both backend and frontend test suites pass cleanly.
 
 ---
 
 ## Development Setup
 
-See [README.md](./README.md#building-from-source) for the full setup guide.
-
-**Quick summary:**
 ```bash
-# Prerequisites: Go 1.21+, Node 18+, Wails CLI
-go install github.com/wailsapp/wails/v2/cmd/wails@latest
-
 git clone https://github.com/marcelomatz/writtt.git
-cd writtt
-wails dev
+cd writtt/frontend
+npm install
+npx vitest run
+npm run build
+cd ..
+go test -count=1 -cover ./...
+go build -o writtt.exe .
 ```
 
 ---
 
 ## Code Style
 
-- **Go**: standard `gofmt`. No external linters required, but keep functions small.
-- **TypeScript/React**: Prettier defaults. `npm run lint` should pass.
-- **Commits**: use conventional commits — `fix:`, `feat:`, `docs:`, `refactor:`.
+- **Go**: Standard `gofmt`, explicit error wrapping, deterministic unit tests via `MockCommandRunner` (`domain.CommandRunner`).
+- **TypeScript**: Strict TypeScript (`tsc --noEmit`), modular views without inline styles, and Vitest unit tests for domain/application logic.
+- **Commits**: Conventional commits (`feat:`, `fix:`, `refactor:`, `docs:`, `test:`).
 
 ---
 
-## Reporting Bugs
+## Reporting Bugs & Feature Requests
 
-Use the [bug report template](.github/ISSUE_TEMPLATE/bug_report.md).  
-Include: OS, Writtt version, steps to reproduce, expected vs actual behaviour.
-
----
-
-## Feature Requests
-
-Use the [feature request template](.github/ISSUE_TEMPLATE/feature_request.md).  
-Explain the use case before the solution.
-
----
-
-## Code of Conduct
-
-Be direct and respectful. Disagreement about technical decisions is fine; hostility is not.
+- Bug reports: [.github/ISSUE_TEMPLATE/bug_report.md](./.github/ISSUE_TEMPLATE/bug_report.md)
+- Feature requests: [.github/ISSUE_TEMPLATE/feature_request.md](./.github/ISSUE_TEMPLATE/feature_request.md)
