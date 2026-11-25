@@ -4,47 +4,24 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build and publish (e.g. v0.2.0)'
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 jobs:
-  create-release:
-    name: Create Release
-    runs-on: ubuntu-latest
-    steps:
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: "Writtt ${{ github.ref_name }}"
-          body: |
-            ## Writtt ${{ github.ref_name }}
-
-            Local-First Distraction-Free Editorial Studio & Zero-Knowledge Cryptographic Vault.
-
-            ### Downloads
-
-            | Platform | Artifact | Format |
-            | :--- | :--- | :--- |
-            | **Windows (x64)** | `writtt-windows-amd64.exe` | Standalone Native Executable |
-            | **macOS (Universal)** | `writtt-macos-universal.zip` | Native macOS Bundle |
-            | **Linux (x64)** | `writtt-linux-amd64.tar.gz` | Compressed Native Binary |
-
-            ### Notes
-            - **Official Documentation & Release Guide:** https://www.writtt.com
-            - **Windows:** Native WebView2 executable — if SmartScreen appears on first launch, choose _More info -> Run anyway_.
-            - **macOS:** On first launch of an unsigned build, open via _System Settings -> Privacy & Security -> Open Anyway_.
-            - **Linux:** Extract and run `chmod +x writtt && ./writtt`.
-          draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}
-
   build-windows:
     name: Build Windows (x64)
-    needs: create-release
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - uses: actions/setup-go@v5
         with:
@@ -54,7 +31,7 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install & Test Frontend
+      - name: Install, Test & Build Frontend
         working-directory: frontend
         run: |
           npm install
@@ -66,21 +43,26 @@ jobs:
 
       - name: Build Windows Native Executable (Wails v3)
         shell: pwsh
+        env:
+          RAW_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          go build -tags production -ldflags "-s -w -H windowsgui -X main.CurrentVersion=${{ github.ref_name }}" -o writtt-windows-amd64.exe .
+          $ver = $env:RAW_TAG.TrimStart('v')
+          go build -tags production -ldflags "-s -w -H windowsgui -X main.CurrentVersion=$ver" -o writtt-windows-amd64.exe .
 
-      - name: Upload Windows Asset
-        uses: softprops/action-gh-release@v2
+      - name: Upload Windows Build Artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ github.ref_name }}
-          files: writtt-windows-amd64.exe
+          name: asset-windows
+          path: writtt-windows-amd64.exe
+          if-no-files-found: error
 
   build-macos:
-    name: Build macOS
-    needs: create-release
+    name: Build macOS (Universal)
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - uses: actions/setup-go@v5
         with:
@@ -96,23 +78,66 @@ jobs:
           npm install
           npm run build
 
-      - name: Build macOS Binary (Wails v3)
+      - name: Build macOS Universal App Bundle (Wails v3)
+        env:
+          RAW_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          CGO_ENABLED=1 go build -tags production -ldflags "-s -w -X main.CurrentVersion=${{ github.ref_name }}" -o writtt .
-          zip -r writtt-macos-universal.zip writtt
+          VER="${RAW_TAG#v}"
+          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -tags production -ldflags "-s -w -X main.CurrentVersion=${VER}" -o writtt-arm64 .
+          if CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -tags production -ldflags "-s -w -X main.CurrentVersion=${VER}" -o writtt-amd64 .; then
+            lipo -create -output writtt-bin writtt-arm64 writtt-amd64
+          else
+            cp writtt-arm64 writtt-bin
+          fi
+          chmod +x writtt-bin
 
-      - name: Upload macOS Asset
-        uses: softprops/action-gh-release@v2
+          mkdir -p Writtt.app/Contents/MacOS Writtt.app/Contents/Resources
+          cp writtt-bin Writtt.app/Contents/MacOS/Writtt
+          if [ -f build/appicon.png ]; then
+            cp build/appicon.png Writtt.app/Contents/Resources/appicon.png
+          fi
+          cat > Writtt.app/Contents/Info.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleExecutable</key>
+            <string>Writtt</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.writtt.studio</string>
+            <key>CFBundleName</key>
+            <string>Writtt</string>
+            <key>CFBundleDisplayName</key>
+            <string>Writtt</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>CFBundleShortVersionString</key>
+            <string>${VER}</string>
+            <key>CFBundleVersion</key>
+            <string>${VER}</string>
+            <key>LSMinimumSystemVersion</key>
+            <string>11.0</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+          ditto -c -k --sequesterRsrc --keepParent Writtt.app writtt-macos-universal.zip
+
+      - name: Upload macOS Build Artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ github.ref_name }}
-          files: writtt-macos-universal.zip
+          name: asset-macos
+          path: writtt-macos-universal.zip
+          if-no-files-found: error
 
   build-linux:
     name: Build Linux (x64)
-    needs: create-release
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - uses: actions/setup-go@v5
         with:
@@ -122,24 +147,114 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install GTK3 & WebKit2GTK System Libraries
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev build-essential pkg-config
-
       - name: Install & Build Frontend
         working-directory: frontend
         run: |
           npm install
           npm run build
 
-      - name: Build Linux Binary (Wails v3)
+      - name: Build Linux Portable Binary (Wails v3 PureGo GTK3)
+        env:
+          RAW_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          CGO_ENABLED=1 go build -tags production -ldflags "-s -w -X main.CurrentVersion=${{ github.ref_name }}" -o writtt .
+          VER="${RAW_TAG#v}"
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags "production,purego,gtk3" -ldflags "-s -w -X main.CurrentVersion=${VER}" -o writtt .
+          chmod +x writtt
           tar -czf writtt-linux-amd64.tar.gz writtt
 
-      - name: Upload Linux Asset
-        uses: softprops/action-gh-release@v2
+      - name: Upload Linux Build Artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ github.ref_name }}
-          files: writtt-linux-amd64.tar.gz
+          name: asset-linux
+          path: writtt-linux-amd64.tar.gz
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-windows, build-macos, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download All Platform Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-assets
+          merge-multiple: true
+
+      - name: Create or Update GitHub Release (With Exponential Backoff)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          ls -lh dist-assets/
+
+          cat > release-notes.md <<'EOF'
+          ## Writtt __TAG__
+
+          Local-First Distraction-Free Editorial Studio & Zero-Knowledge Cryptographic Vault.
+
+          ### Downloads
+
+          | Platform | Artifact | Format |
+          | :--- | :--- | :--- |
+          | **Windows (x64)** | `writtt-windows-amd64.exe` | Standalone Native Executable |
+          | **macOS (Universal)** | `writtt-macos-universal.zip` | Universal macOS `.app` Bundle (Apple Silicon + Intel) |
+          | **Linux (x64)** | `writtt-linux-amd64.tar.gz` | Portable Native Binary (GTK3 / WebKit2GTK) |
+
+          ### Notes
+          - **Official Website & Documentation:** https://www.writtt.com
+          - **Windows:** Native WebView2 executable — if SmartScreen appears on first launch, choose _More info -> Run anyway_.
+          - **macOS:** Extract `Writtt.app` and move to `/Applications`. On first launch of an unsigned build, allow via _System Settings -> Privacy & Security -> Open Anyway_.
+          - **Linux:** Extract and run `chmod +x writtt && ./writtt`.
+          EOF
+          sed -i "s/__TAG__/${TAG}/g" release-notes.md
+
+          PRERELEASE_FLAG=""
+          if [[ "${TAG}" == *"-"* ]]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+
+          DELAYS=(5 10 20 30 45 60 60 60)
+          PUBLISHED=0
+
+          for ATTEMPT in $(seq 1 8); do
+            echo "Publishing release ${TAG} (attempt ${ATTEMPT}/8)..."
+
+            # Clean up any orphaned draft releases for the same tag that would cause conflicts
+            DRAFT_IDS=$(gh api "/repos/${REPO}/releases" --jq ".[] | select(.tag_name == \"${TAG}\" and .draft == true) | .id" 2>/dev/null || true)
+            for DID in ${DRAFT_IDS}; do
+              echo "Removing stale draft release ID ${DID}..."
+              gh api -X DELETE "/repos/${REPO}/releases/${DID}" || true
+            done
+
+            if gh release view "${TAG}" --repo "${REPO}" >/dev/null 2>&1; then
+              if gh release upload "${TAG}" dist-assets/* --clobber --repo "${REPO}" && \
+                 gh release edit "${TAG}" --title "Writtt ${TAG}" --notes-file release-notes.md --draft=false --repo "${REPO}"; then
+                PUBLISHED=1
+                break
+              fi
+            else
+              if gh release create "${TAG}" dist-assets/* \
+                   --repo "${REPO}" \
+                   --verify-tag \
+                   --title "Writtt ${TAG}" \
+                   --notes-file release-notes.md \
+                   ${PRERELEASE_FLAG}; then
+                PUBLISHED=1
+                break
+              fi
+            fi
+
+            if [ "${ATTEMPT}" -lt 8 ]; then
+              WAIT_SEC=${DELAYS[$((ATTEMPT - 1))]}
+              echo "GitHub Releases API returned an error; retrying in ${WAIT_SEC}s..."
+              sleep "${WAIT_SEC}"
+            fi
+          done
+
+          if [ "${PUBLISHED}" -ne 1 ]; then
+            echo "Failed to publish GitHub Release ${TAG} after 8 attempts."
+            exit 1
+          fi
+          echo "Successfully published Writtt ${TAG}!"
