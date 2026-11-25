@@ -200,34 +200,34 @@ export function renderEditorStageView(
           <div class="writtt-header-group">
             <button class="writtt-btn ${activeDoc.is_vault ? "is-active writtt-vault-badge-btn" : ""}" id="hdr-toggle-vault">
               ${matzIcon(activeDoc.is_vault ? "lock" : "unlock", 12)}
-              <span>${activeDoc.is_vault ? t("Cofre E2EE", "Vault E2EE", "Boveda E2EE") : t("Publico", "Public", "Publico")}</span>
+              <span>${activeDoc.is_vault ? t("Cofre E2EE", "Vault E2EE", "Bóveda E2EE") : t("Público", "Public", "Público")}</span>
             </button>
             <div class="writtt-segmented">
               <button class="writtt-btn writtt-btn-ghost writtt-seg-btn ${editorMode === "rich" ? "is-active" : ""}" data-vmode="rich">Rich</button>
               <button class="writtt-btn writtt-btn-ghost writtt-seg-btn ${editorMode === "markdown" ? "is-active" : ""}" data-vmode="markdown">Markdown</button>
               ${
                 activeDoc.parent_id
-                  ? `<button class="writtt-btn writtt-btn-ghost writtt-seg-btn ${editorMode === "dual" ? "is-active" : ""}" data-vmode="dual" title="${t("Consultar a obra principal ao lado como referencia", "View parent work side-by-side for reference", "Ver obra principal al lado")}">${t("Ver Obra Pai", "Parent Ref", "Ver Padre")}</button>`
+                  ? `<button class="writtt-btn writtt-btn-ghost writtt-seg-btn ${editorMode === "dual" ? "is-active" : ""}" data-vmode="dual" title="${t("Consultar a obra principal ao lado como referência", "View parent work side-by-side for reference", "Ver obra principal al lado")}">${t("Ver Obra Pai", "Parent Ref", "Ver Padre")}</button>`
                   : ""
               }
             </div>
           </div>
 
           <div class="writtt-header-group">
-            <button class="writtt-btn writtt-btn-ghost" id="hdr-split-sub" title="${t("Adicionar um novo subcapitulo em branco dentro da estrutura desta obra", "Add a new blank sub-chapter nested inside this work", "Agregar un nuevo subcapitulo en blanco a esta obra")}">
-              ${matzIcon("plus", 12)} <span>${t("Subcapitulo", "Sub-Chapter", "Subcapitulo")}</span>
+            <button class="writtt-btn writtt-btn-ghost" id="hdr-split-sub" title="${t("Adicionar um novo subcapítulo em branco dentro da estrutura desta obra", "Add a new blank sub-chapter nested inside this work", "Agregar un nuevo subcapítulo en blanco a esta obra")}">
+              ${matzIcon("plus", 12)} <span>${t("Subcapítulo", "Sub-Chapter", "Subcapítulo")}</span>
             </button>
-            <button class="writtt-btn writtt-btn-ghost" id="hdr-duplicate-doc" title="${t("Criar uma copia completa e independente desta obra para trabalhar em outra frente", "Create a full standalone copy of this work to edit separately", "Crear una copia completa e independiente de esta obra")}">
-              ${matzIcon("copy", 12)} <span>${t("Criar Copia", "Make Copy", "Crear Copia")}</span>
+            <button class="writtt-btn writtt-btn-ghost" id="hdr-duplicate-doc" title="${t("Criar uma cópia completa e independente desta obra para trabalhar em outra frente", "Create a full standalone copy of this work to edit separately", "Crear una copia completa e independiente de esta obra")}">
+              ${matzIcon("copy", 12)} <span>${t("Criar Cópia", "Make Copy", "Crear Copia")}</span>
             </button>
-            <button class="writtt-btn writtt-btn-ghost" id="hdr-zen" title="${t("Modo Zen sem distracoes (Alt+Z)", "Zen Distraction-Free Mode (Alt+Z)", "Modo Zen sin distracciones (Alt+Z)")}">
+            <button class="writtt-btn writtt-btn-ghost" id="hdr-zen" title="${t("Modo Zen sem distrações (Alt+Z)", "Zen Distraction-Free Mode (Alt+Z)", "Modo Zen sin distracciones (Alt+Z)")}">
               ${matzIcon("eye", 13)}
             </button>
-            <button class="writtt-btn ${props.aiStudioOpen ? "is-active" : ""}" id="hdr-ai-btn" title="${t("Abrir Estudio IA & RAG (Chatbot, Editor IA, janela flutuante ou 2o monitor)", "Open AI & RAG Studio (Chatbot, Editorial AI, floating or 2nd monitor)", "Abrir Estudio IA y RAG")}">
+            <button class="writtt-btn ${props.aiStudioOpen ? "is-active" : ""}" id="hdr-ai-btn" title="${t("Abrir Estúdio IA & RAG (Chatbot, Editor IA, janela flutuante ou 2º monitor)", "Open AI & RAG Studio (Chatbot, Editorial AI, floating or 2nd monitor)", "Abrir Estudio IA y RAG")}">
               <span class="writtt-status-dot ${props.localAiOnline ? "is-online" : "is-offline"}"></span>
               ${matzIcon("sparkles", 12)} <span>IA / RAG</span>
             </button>
-            <button class="writtt-btn ${props.inspectorOpen ? "is-active" : ""}" id="hdr-toggle-inspector" title="${t("Abrir ou fechar o Painel Editorial (Sumario, Versoes e Exportar)", "Toggle Editorial Panel (Outline, History & Export)", "Abrir o cerrar el Panel Editorial")}">
+            <button class="writtt-btn ${props.inspectorOpen ? "is-active" : ""}" id="hdr-toggle-inspector" title="${t("Abrir ou fechar o Painel Editorial (Sumário, Versões e Exportar)", "Toggle Editorial Panel (Outline, History & Export)", "Abrir o cerrar el Panel Editorial")}">
               ${matzIcon("layers", 13)} <span>${t("Painel", "Panel", "Panel")}</span>
             </button>
             <button

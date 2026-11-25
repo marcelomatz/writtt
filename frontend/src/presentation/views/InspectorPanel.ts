@@ -64,10 +64,10 @@ export function renderInspectorPanel(
 
     <div class="writtt-inspector-tabs is-three-tabs">
       <button class="writtt-insp-tab ${st.tab === "outline" ? "is-active" : ""}" data-itab="outline">
-        ${matzIcon("layers", 11)} <span>${t("Sumario", "Outline", "Indice")}</span>
+        ${matzIcon("layers", 11)} <span>${t("Sumário", "Outline", "Índice")}</span>
       </button>
       <button class="writtt-insp-tab ${st.tab === "history" ? "is-active" : ""}" data-itab="history">
-        ${matzIcon("git-commit", 11)} <span>${t("Versoes", "History", "Historial")}</span>
+        ${matzIcon("git-commit", 11)} <span>${t("Versões", "History", "Historial")}</span>
       </button>
       <button class="writtt-insp-tab ${st.tab === "export" ? "is-active" : ""}" data-itab="export">
         ${matzIcon("download", 11)} <span>${t("Exportar", "Export", "Exportar")}</span>

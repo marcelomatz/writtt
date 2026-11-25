@@ -102,12 +102,12 @@ export function renderHomeView(
                         ${t(
                           "Feito para escrever. Blindado por design.",
                           "Built to write. Armored by design.",
-                          "Hecho para escribir. Blindado por diseno."
+                          "Hecho para escribir. Blindado por diseño."
                         )}
                       </h1>
                       <p class="writtt-home-display-lead">
                         ${t(
-                          "O Writtt vive no seu computador — ponto final. Sem contas, sem sincronizacao forcada em nuvem e sem empresas lendo o que voce escreve. Escrever para pensar, com privacidade total: suas palavras sao suas, completamente.",
+                          "O Writtt vive no seu computador — ponto final. Sem contas, sem sincronização forçada em nuvem e sem empresas lendo o que você escreve. Escrever para pensar, com privacidade total: suas palavras são suas, completamente.",
                           "Writtt lives on your computer — full stop. No accounts, no forced cloud sync, and no companies reading your texts. Write to think in complete privacy: your words are yours, completely.",
                           "Writtt vive en tu computadora — punto final. Sin cuentas, sin nube forzada y sin empresas leyendo lo que escribes. Tus palabras son completamente tuyas."
                         )}
@@ -117,7 +117,7 @@ export function renderHomeView(
 
                   <div class="writtt-home-hero-right">
                     <div class="writtt-home-top-pills">
-                      <button class="writtt-btn writtt-btn-xs ${st.securityCfg.password_enabled ? (st.securityCfg.vault_unlocked ? "is-status-ok" : "is-status-warn") : ""}" id="home-pill-vault" title="${t("Gerenciar Senha Mestra, PIN rapido e bloqueio do cofre", "Manage Master Password, Quick PIN and Vault lock", "Gestionar Contrasena Maestra y PIN")}">
+                      <button class="writtt-btn writtt-btn-xs ${st.securityCfg.password_enabled ? (st.securityCfg.vault_unlocked ? "is-status-ok" : "is-status-warn") : ""}" id="home-pill-vault" title="${t("Gerenciar Senha Mestra, PIN rápido e bloqueio do cofre", "Manage Master Password, Quick PIN and Vault lock", "Gestionar Contraseña Maestra y PIN")}">
                         ${matzIcon(st.securityCfg.vault_unlocked ? "unlock" : "lock", 11)}
                         <span>${vaultLabel}</span>
                       </button>
@@ -131,7 +131,7 @@ export function renderHomeView(
                       </button>
                       <button class="writtt-btn writtt-btn-xs" id="home-pill-help" title="F1">
                         ${matzIcon("help-circle", 11)}
-                        <span>${t("Guia Completo", "Complete Guide", "Guia Completa")}</span>
+                        <span>${t("Guia Completo", "Complete Guide", "Guía Completa")}</span>
                       </button>
                     </div>
 
@@ -140,14 +140,14 @@ export function renderHomeView(
                         <span class="writtt-accent-icon">${matzIcon("hard-drive", 13)}</span>
                         <div>
                           <div class="writtt-home-pillar-title">${t("100% Offline Sempre", "100% Offline Always", "100% Offline Siempre")}</div>
-                          <div class="writtt-home-pillar-sub">${t("Nenhum dado sai da sua maquina", "Zero data leaves your device", "Ningun dato sale de tu equipo")}</div>
+                          <div class="writtt-home-pillar-sub">${t("Nenhum dado sai da sua máquina", "Zero data leaves your device", "Ningún dato sale de tu equipo")}</div>
                         </div>
                       </div>
                       <div class="writtt-home-pillar">
                         <span class="writtt-vault-icon">${matzIcon("vault", 13)}</span>
                         <div>
-                          <div class="writtt-home-pillar-title">${t("Cofre Criptografado", "Encrypted Vault", "Boveda Cifrada")}</div>
-                          <div class="writtt-home-pillar-sub">${t("Ilegivel ate no disco rigido", "Unreadable even on raw disk", "Ilegible incluso en el disco")}</div>
+                          <div class="writtt-home-pillar-title">${t("Cofre Criptografado", "Encrypted Vault", "Bóveda Cifrada")}</div>
+                          <div class="writtt-home-pillar-sub">${t("Ilegível até no disco rígido", "Unreadable even on raw disk", "Ilegible incluso en el disco")}</div>
                         </div>
                       </div>
                       <div class="writtt-home-pillar">
@@ -175,9 +175,9 @@ export function renderHomeView(
             </div>
             <p class="writtt-home-start-desc">
               ${t(
-                "A pagina em branco, sem ninguem olhando. Editor completo com capitulos, tabelas, desenhos e atalhos /.",
+                "A página em branco, sem ninguém olhando. Editor completo com capítulos, tabelas, desenhos e atalhos /.",
                 "A blank page with no one watching. Full rich-text studio with chapters, tables, drawings and / commands.",
-                "La pagina en blanco sin distracciones. Editor completo con capitulos, tablas, dibujos y comandos /."
+                "La página en blanco sin distracciones. Editor completo con capítulos, tablas, dibujos y comandos /."
               )}
             </p>
           </button>
@@ -185,16 +185,16 @@ export function renderHomeView(
           <button class="writtt-home-start-card is-vault" id="home-new-vault-doc">
             <div class="writtt-home-start-head">
               <span class="writtt-home-icon-box is-warn">${matzIcon("lock", 16)}</span>
-              <span class="matz-badge writtt-mono writtt-badge-xs">${t("COFRE", "VAULT", "BOVEDA")}</span>
+              <span class="matz-badge writtt-mono writtt-badge-xs">${t("COFRE", "VAULT", "BÓVEDA")}</span>
             </div>
             <div class="writtt-home-start-title">
-              ${t("Criar Obra no Cofre Protegido", "Create in Protected Vault", "Crear en Boveda Protegida")}
+              ${t("Criar Obra no Cofre Protegido", "Create in Protected Vault", "Crear en Bóveda Protegida")}
             </div>
             <p class="writtt-home-start-desc">
               ${t(
-                "Algumas coisas nao sao para ninguem. Seu texto e embaralhado por senha antes de ser salvo no computador.",
+                "Algumas coisas não são para ninguém. Seu texto é embaralhado por senha antes de ser salvo no computador.",
                 "Some things aren't meant for anyone else. Scrambled with your password before touching the hard drive.",
-                "Algunas cosas son solo para ti. Protegido con tu contrasena antes de guardarse en el disco."
+                "Algunas cosas son solo para ti. Protegido con tu contraseña antes de guardarse en el disco."
               )}
             </p>
           </button>
@@ -209,9 +209,9 @@ export function renderHomeView(
             </div>
             <p class="writtt-home-start-desc">
               ${t(
-                "Traga rascunhos, anotacoes ou livros que ja estao nas suas pastas para editar, organizar e blindar aqui.",
+                "Traga rascunhos, anotações ou livros que já estão nas suas pastas para editar, organizar e blindar aqui.",
                 "Bring existing drafts, notes or chapters from your folders to organize, edit and protect here.",
-                "Trae textos o capitulos existentes desde tus carpetas para editarlos y protegerlos aqui."
+                "Trae textos o capítulos existentes desde tus carpetas para editarlos y protegerlos aquí."
               )}
             </p>
           </button>
@@ -222,14 +222,14 @@ export function renderHomeView(
             ? `<section class="writtt-home-ecosystem">
                 <div class="writtt-home-section-head">
                   <span class="writtt-section-kicker">
-                    ${t("RECURSOS DO ESTUDIO & FERRAMENTAS DISPONIVEIS", "STUDIO CAPABILITIES & TOOLS", "RECURSOS DEL ESTUDIO")}
+                    ${t("RECURSOS DO ESTÚDIO & FERRAMENTAS DISPONÍVEIS", "STUDIO CAPABILITIES & TOOLS", "RECURSOS DEL ESTUDIO")}
                   </span>
                   <div class="writtt-row-gap-xs">
                     <button type="button" class="writtt-btn writtt-btn-ghost writtt-btn-xs" data-home-help-topic="overview">
                       ${matzIcon("bookmark", 11)}
                       <span>${t("Entender todos os recursos", "Explore how everything works", "Explorar todos los recursos")}</span>
                     </button>
-                    <button type="button" class="writtt-btn writtt-btn-ghost writtt-btn-xs writtt-home-dismiss-btn" data-home-hide="capabilities" title="${t("Ocultar este painel da Tela Inicial (reative em Configuracoes -> Aparencia)", "Hide from Home screen (restore in Settings -> Appearance)", "Ocultar de Inicio (restaurar en Configuracion)")}">
+                    <button type="button" class="writtt-btn writtt-btn-ghost writtt-btn-xs writtt-home-dismiss-btn" data-home-hide="capabilities" title="${t("Ocultar este painel da Tela Inicial (reative em Configurações -> Aparência)", "Hide from Home screen (restore in Settings -> Appearance)", "Ocultar de Inicio (restaurar en Configuración)")}">
                       ${matzIcon("eye-off", 11)}
                       <span>${t("Ocultar", "Hide", "Ocultar")}</span>
                     </button>
@@ -240,8 +240,8 @@ export function renderHomeView(
                   <button class="writtt-home-cap-tile" data-home-stab="security">
                     <span class="writtt-home-cap-icon is-warn">${matzIcon("key", 14)}</span>
                     <div class="writtt-min-w0">
-                      <div class="writtt-home-cap-title">${t("Senha Mestra, PIN & 2FA", "Password, PIN & 2FA", "Contrasena, PIN y 2FA")}</div>
-                      <div class="writtt-home-cap-desc">${t("Trava dupla: senha forte no disco e PIN curto no dia a dia.", "Dual lock: strong disk password plus quick daily PIN.", "Contrasena fuerte y PIN rapido diario.")}</div>
+                      <div class="writtt-home-cap-title">${t("Senha Mestra, PIN & 2FA", "Password, PIN & 2FA", "Contraseña, PIN y 2FA")}</div>
+                      <div class="writtt-home-cap-desc">${t("Trava dupla: senha forte no disco e PIN curto no dia a dia.", "Dual lock: strong disk password plus quick daily PIN.", "Contraseña fuerte y PIN rápido diario.")}</div>
                     </div>
                   </button>
 
@@ -249,15 +249,15 @@ export function renderHomeView(
                     <span class="writtt-home-cap-icon is-accent">${matzIcon("sparkles", 14)}</span>
                     <div class="writtt-min-w0">
                       <div class="writtt-home-cap-title">${t("Assistente IA Offline", "Offline AI Assistant", "Asistente IA Offline")}</div>
-                      <div class="writtt-home-cap-desc">${t("Reescreva, resuma e converse usando Ollama na sua maquina.", "Rewrite, summarize and chat via Ollama on your hardware.", "Reescribe y chatea con Ollama en tu equipo.")}</div>
+                      <div class="writtt-home-cap-desc">${t("Reescreva, resuma e converse usando Ollama na sua máquina.", "Rewrite, summarize and chat via Ollama on your hardware.", "Reescribe y chatea con Ollama en tu equipo.")}</div>
                     </div>
                   </button>
 
                   <button class="writtt-home-cap-tile" data-home-stab="express">
                     <span class="writtt-home-cap-icon is-accent">${matzIcon("certificate", 14)}</span>
                     <div class="writtt-min-w0">
-                      <div class="writtt-home-cap-title">${t("Prova de Autoria & Envelopes", "Authorship & Envelopes", "Autoria y Sobres")}</div>
-                      <div class="writtt-home-cap-desc">${t("Comprove data e autoria de obras ineditas e lacre notas.", "Prove authorship dates for unpublished works & seal notes.", "Comprueba autoria y sella notas confidenciales.")}</div>
+                      <div class="writtt-home-cap-title">${t("Prova de Autoria & Envelopes", "Authorship & Envelopes", "Autoría y Sobres")}</div>
+                      <div class="writtt-home-cap-desc">${t("Comprove data e autoria de obras inéditas e lacre notas.", "Prove authorship dates for unpublished works & seal notes.", "Comprueba autoría y sella notas confidenciales.")}</div>
                     </div>
                   </button>
 
@@ -272,8 +272,8 @@ export function renderHomeView(
                   <button class="writtt-home-cap-tile" data-home-stab="appearance">
                     <span class="writtt-home-cap-icon">${matzIcon("palette", 14)}</span>
                     <div class="writtt-min-w0">
-                      <div class="writtt-home-cap-title">${t("Iluminacao, Temas & Foco", "Lighting, Themes & Focus", "Temas, Brillo y Enfoque")}</div>
-                      <div class="writtt-home-cap-desc">${t("Ajuste tipografia, brilho adaptativo e dicionario proprio.", "Customize typography, adaptive brightness & dictionary.", "Ajusta tipografia, brillo y diccionario.")}</div>
+                      <div class="writtt-home-cap-title">${t("Iluminação, Temas & Foco", "Lighting, Themes & Focus", "Temas, Brillo y Enfoque")}</div>
+                      <div class="writtt-home-cap-desc">${t("Ajuste tipografia, brilho adaptativo e dicionário próprio.", "Customize typography, adaptive brightness & dictionary.", "Ajusta tipografía, brillo y diccionario.")}</div>
                     </div>
                   </button>
                 </div>
@@ -285,7 +285,7 @@ export function renderHomeView(
           <div class="writtt-home-filterbar">
             <div class="writtt-home-search">
               <span class="writtt-muted-icon">${matzIcon("search", 13)}</span>
-              <input class="matz-input writtt-input-sm" id="home-search-input" value="${esc(st.searchQuery)}" placeholder="${t("Buscar instantaneamente por titulo, trecho ou #tag...", "Instant local search by title, phrase or #tag...", "Buscar al instante por titulo, frase o #tag...")}" />
+              <input class="matz-input writtt-input-sm" id="home-search-input" value="${esc(st.searchQuery)}" placeholder="${t("Buscar instantaneamente por título, trecho ou #tag...", "Instant local search by title, phrase or #tag...", "Buscar al instante por título, frase o #tag...")}" />
             </div>
 
             <div class="writtt-row-gap-xs">
@@ -296,12 +296,12 @@ export function renderHomeView(
               </button>
               <button class="writtt-btn writtt-btn-sm ${st.filter === "vault" ? "is-active" : ""}" data-hfilter="vault">
                 ${matzIcon("lock", 11)}
-                <span>${t("No Cofre", "In Vault", "En Boveda")}</span>
+                <span>${t("No Cofre", "In Vault", "En Bóveda")}</span>
                 <span class="writtt-mono">(${vaultCount})</span>
               </button>
-              <button class="writtt-btn writtt-btn-sm ${st.filter === "split" ? "is-active" : ""}" data-hfilter="split" title="${t("Capitulos filhos e rascunhos paralelos ligados a uma obra principal", "Child chapters and parallel drafts linked to a parent work", "Subcapitulos y borradores paralelos")}">
+              <button class="writtt-btn writtt-btn-sm ${st.filter === "split" ? "is-active" : ""}" data-hfilter="split" title="${t("Capítulos filhos e rascunhos paralelos ligados a uma obra principal", "Child chapters and parallel drafts linked to a parent work", "Subcapítulos y borradores paralelos")}">
                 ${matzIcon("columns", 11)}
-                <span>${t("Sub-Capitulos", "Sub-Chapters", "Subcapitulos")}</span>
+                <span>${t("Subcapítulos", "Sub-Chapters", "Subcapítulos")}</span>
                 <span class="writtt-mono">(${subCount})</span>
               </button>
             </div>

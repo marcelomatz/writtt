@@ -105,7 +105,7 @@ export function renderAIStudioPanel(
               : t("Ollama local offline", "Local Ollama offline", "Ollama desconectado")
           }"></span>
           <span class="writtt-ais-brand">
-            ${t("Estudio IA", "AI Studio", "Estudio IA")}
+            ${t("Estúdio IA", "AI Studio", "Estudio IA")}
           </span>
           ${
             st.activeDocTitle

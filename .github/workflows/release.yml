@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   build-windows:
-    name: Build Windows (x64)
+    name: Build Windows (Installer + Portable)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,23 +41,81 @@ jobs:
       - name: Run Backend Tests
         run: go test -count=1 ./...
 
-      - name: Build Windows Native Executable (Wails v3)
+      - name: Build Windows Portable & NSIS Installer (Wails v3)
         shell: pwsh
         env:
           RAW_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
+          $ErrorActionPreference = 'Stop'
           $ver = $env:RAW_TAG.TrimStart('v')
+
           go build -tags production -ldflags "-s -w -H windowsgui -X main.CurrentVersion=$ver" -o writtt-windows-amd64.exe .
 
-      - name: Upload Windows Build Artifact
+          # Generate multi-resolution icon.ico from build/appicon.png
+          New-Item -ItemType Directory -Force -Path "build\windows" | Out-Null
+          Add-Type -AssemblyName System.Drawing
+          $sizes  = @(256, 128, 64, 48, 32, 16)
+          $src    = [System.Drawing.Image]::FromFile((Resolve-Path "build\appicon.png").Path)
+          $images = @()
+          foreach ($sz in $sizes) {
+            $bmp = New-Object System.Drawing.Bitmap($sz, $sz)
+            $g   = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+            $g.DrawImage($src, 0, 0, $sz, $sz)
+            $g.Dispose()
+            $ms = New-Object System.IO.MemoryStream
+            $bmp.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
+            $bmp.Dispose()
+            $images += @{ Size = $sz; Bytes = $ms.ToArray() }
+            $ms.Dispose()
+          }
+          $src.Dispose()
+          $out = New-Object System.IO.MemoryStream
+          $bw  = New-Object System.IO.BinaryWriter($out)
+          $bw.Write([uint16]0); $bw.Write([uint16]1); $bw.Write([uint16]$images.Count)
+          $offset = 6 + ($images.Count * 16)
+          foreach ($img in $images) {
+            $dim = [byte]0
+            if ($img.Size -ne 256) { $dim = [byte]$img.Size }
+            $bw.Write($dim); $bw.Write($dim); $bw.Write([byte]0); $bw.Write([byte]0)
+            $bw.Write([uint16]1); $bw.Write([uint16]32)
+            $bw.Write([uint32]$img.Bytes.Length); $bw.Write([uint32]$offset)
+            $offset += $img.Bytes.Length
+          }
+          foreach ($img in $images) { $bw.Write($img.Bytes) }
+          $bw.Flush()
+          [System.IO.File]::WriteAllBytes((Join-Path (Resolve-Path "build\windows").Path "icon.ico"), $out.ToArray())
+          $bw.Dispose(); $out.Dispose()
+
+          # Locate NSIS compiler (pre-installed on windows-latest; fallback to Chocolatey)
+          $makensis = @(
+            "C:\Program Files (x86)\NSIS\makensis.exe",
+            "C:\Program Files\NSIS\makensis.exe"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $makensis) {
+            choco install nsis --yes --no-progress
+            $makensis = @(
+              "C:\Program Files (x86)\NSIS\makensis.exe",
+              "C:\Program Files\NSIS\makensis.exe"
+            ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+          if (-not $makensis) { throw "makensis.exe not found" }
+
+          & $makensis "/DPRODUCT_VERSION=$ver" "build\windows\installer.nsi"
+          if ($LASTEXITCODE -ne 0) { throw "NSIS build failed with exit code $LASTEXITCODE" }
+          Get-Item writtt-windows-amd64.exe, writtt-windows-amd64-installer.exe | Select-Object Name, Length | Format-Table
+
+      - name: Upload Windows Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: asset-windows
-          path: writtt-windows-amd64.exe
+          path: |
+            writtt-windows-amd64-installer.exe
+            writtt-windows-amd64.exe
           if-no-files-found: error
 
   build-macos:
-    name: Build macOS (Universal)
+    name: Build macOS (DMG + Universal ZIP)
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -78,7 +136,7 @@ jobs:
           npm install
           npm run build
 
-      - name: Build macOS Universal App Bundle (Wails v3)
+      - name: Build macOS Universal App Bundle & DMG (Wails v3)
         env:
           RAW_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
@@ -122,13 +180,22 @@ jobs:
           </dict>
           </plist>
           EOF
+
           ditto -c -k --sequesterRsrc --keepParent Writtt.app writtt-macos-universal.zip
 
-      - name: Upload macOS Build Artifact
+          mkdir -p dmg-staging
+          cp -R Writtt.app dmg-staging/Writtt.app
+          ln -s /Applications dmg-staging/Applications
+          hdiutil create -volname "Writtt" -srcfolder dmg-staging -ov -format UDZO writtt-macos-universal.dmg
+          ls -lh writtt-macos-universal.dmg writtt-macos-universal.zip
+
+      - name: Upload macOS Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: asset-macos
-          path: writtt-macos-universal.zip
+          path: |
+            writtt-macos-universal.dmg
+            writtt-macos-universal.zip
           if-no-files-found: error
 
   build-linux:
@@ -192,20 +259,23 @@ jobs:
           cat > release-notes.md <<'EOF'
           ## Writtt __TAG__
 
+          Estudio editorial local-first sem distracoes e cofre criptografico Zero-Knowledge.
           Local-First Distraction-Free Editorial Studio & Zero-Knowledge Cryptographic Vault.
 
           ### Downloads
 
           | Platform | Artifact | Format |
           | :--- | :--- | :--- |
-          | **Windows (x64)** | `writtt-windows-amd64.exe` | Standalone Native Executable |
-          | **macOS (Universal)** | `writtt-macos-universal.zip` | Universal macOS `.app` Bundle (Apple Silicon + Intel) |
+          | **Windows (x64)** | `writtt-windows-amd64-installer.exe` | Windows Installer (Recommended) |
+          | **Windows (x64)** | `writtt-windows-amd64.exe` | Portable Standalone Executable |
+          | **macOS (Universal)** | `writtt-macos-universal.dmg` | Universal Disk Image Installer (Apple Silicon + Intel) |
+          | **macOS (Universal)** | `writtt-macos-universal.zip` | Universal `.app` Bundle Archive |
           | **Linux (x64)** | `writtt-linux-amd64.tar.gz` | Portable Native Binary (GTK3 / WebKit2GTK) |
 
           ### Notes
           - **Official Website & Documentation:** https://www.writtt.com
-          - **Windows:** Native WebView2 executable — if SmartScreen appears on first launch, choose _More info -> Run anyway_.
-          - **macOS:** Extract `Writtt.app` and move to `/Applications`. On first launch of an unsigned build, allow via _System Settings -> Privacy & Security -> Open Anyway_.
+          - **Windows:** Run `writtt-windows-amd64-installer.exe` for Start Menu & Desktop installation (or use the portable `.exe`). If SmartScreen appears on first launch, choose _More info -> Run anyway_.
+          - **macOS:** Open `writtt-macos-universal.dmg` and drag `Writtt.app` to `Applications`. On first launch of an unsigned build, allow via _System Settings -> Privacy & Security -> Open Anyway_.
           - **Linux:** Extract and run `chmod +x writtt && ./writtt`.
           EOF
           sed -i "s/__TAG__/${TAG}/g" release-notes.md
@@ -221,7 +291,6 @@ jobs:
           for ATTEMPT in $(seq 1 8); do
             echo "Publishing release ${TAG} (attempt ${ATTEMPT}/8)..."
 
-            # Clean up any orphaned draft releases for the same tag that would cause conflicts
             DRAFT_IDS=$(gh api "/repos/${REPO}/releases" --jq ".[] | select(.tag_name == \"${TAG}\" and .draft == true) | .id" 2>/dev/null || true)
             for DID in ${DRAFT_IDS}; do
               echo "Removing stale draft release ID ${DID}..."

@@ -10,7 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@matz/ui": "github:marcelomatz/matz-ui#v0.2.0",
+    "@matz/ui": "github:marcelomatz/matz-ui#v0.2.1",
     "@tiptap/core": "^3.35.0",
     "@tiptap/extension-code-block-lowlight": "^3.35.0",
     "@tiptap/extension-focus": "^3.35.0",
