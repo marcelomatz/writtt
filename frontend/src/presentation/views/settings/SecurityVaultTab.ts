@@ -19,30 +19,30 @@ export function renderSecurityVaultTab(
   settingsAuthGuard = null;
 
   container.innerHTML = `
-    <h2 class="writtt-section-h2">${t("Cofre Pessoal & Protecao das Obras", "Personal Vault & Manuscript Protection", "Boveda Personal y Seguridad")}</h2>
-    <p class="writtt-section-lead">${t("Tranque suas obras com senha forte diretamente no seu computador. Nenhum arquivo vai para a nuvem e ninguem alem de voce consegue ler os textos protegidos.", "Lock your manuscripts with a strong password directly on your computer. Nothing is uploaded to the cloud and only you can read sealed works.", "Bloquea tus obras con contrasena fuerte en tu equipo, 100% sin nube.")}</p>
+    <h2 class="writtt-section-h2">${t("Cofre Pessoal & Proteção das Obras", "Personal Vault & Manuscript Protection", "Bóveda Personal y Seguridad")}</h2>
+    <p class="writtt-section-lead">${t("Tranque suas obras com senha forte diretamente no seu computador. Nenhum arquivo vai para a nuvem e ninguém além de você consegue ler os textos protegidos.", "Lock your manuscripts with a strong password directly on your computer. Nothing is uploaded to the cloud and only you can read sealed works.", "Bloquea tus obras con contraseña fuerte en tu equipo, 100% sin nube.")}</p>
 
     <div class="writtt-grid-2">
       <div class="writtt-card">
         <div class="writtt-card-title">
-          <span>1. ${cfg.password_enabled ? t("Alterar / Gerenciar Senha Mestra", "Change / Manage Master Password", "Cambiar Contrasena Maestra") : t("Criar Senha Mestra do Cofre", "Create Vault Master Password", "Crear Contrasena Maestra")}</span>
-          <span class="writtt-pill ${cfg.password_enabled ? (cfg.vault_unlocked ? "is-ok" : "is-vault") : ""}">${cfg.password_enabled ? (cfg.vault_unlocked ? t("ABERTO", "OPEN", "ABIERTA") : t("SELADO", "SEALED", "SELLADA")) : t("NAO DEFINIDA", "NOT SET", "NO DEFINIDA")}</span>
+          <span>1. ${cfg.password_enabled ? t("Alterar / Gerenciar Senha Mestra", "Change / Manage Master Password", "Cambiar Contraseña Maestra") : t("Criar Senha Mestra do Cofre", "Create Vault Master Password", "Crear Contraseña Maestra")}</span>
+          <span class="writtt-pill ${cfg.password_enabled ? (cfg.vault_unlocked ? "is-ok" : "is-vault") : ""}">${cfg.password_enabled ? (cfg.vault_unlocked ? t("ABERTO", "OPEN", "ABIERTA") : t("SELADO", "SEALED", "SELLADA")) : t("NÃO DEFINIDA", "NOT SET", "NO DEFINIDA")}</span>
         </div>
         ${
           !cfg.password_enabled
             ? `<p class="writtt-help-note writtt-mb-xs">
-                ${t("Voce ainda nao cadastrou uma Senha Mestra. Crie uma senha abaixo para ativar o Cofre Pessoal e liberar o PIN rapido, a Chave de Recuperacao e o 2FA.", "You have not created a Master Password yet. Create one below to enable your Personal Vault, Quick PIN, Recovery Key and 2FA.", "Aun no tienes una Contrasena Maestra. Crea una abajo para activar la Boveda.")}
+                ${t("Você ainda não cadastrou uma Senha Mestra. Crie uma senha abaixo para ativar o Cofre Pessoal e liberar o PIN rápido, a Chave de Recuperação e o 2FA.", "You have not created a Master Password yet. Create one below to enable your Personal Vault, Quick PIN, Recovery Key and 2FA.", "Aún no tienes una Contraseña Maestra. Crea una abajo para activar la Bóveda.")}
               </p>
-              <input type="password" class="matz-input writtt-mb-xs" id="st-new-pwd" placeholder="${t("Criar nova Senha Mestra (min. 6 caracteres)...", "Create new Master Password (min. 6 chars)...", "Nueva Contrasena Maestra...")}" />
-              <input type="password" class="matz-input writtt-mb-xs" id="st-confirm-pwd" placeholder="${t("Confirmar nova Senha Mestra...", "Confirm new Master Password...", "Confirmar Contrasena Maestra...")}" />
+              <input type="password" class="matz-input writtt-mb-xs" id="st-new-pwd" placeholder="${t("Criar nova Senha Mestra (mín. 6 caracteres)...", "Create new Master Password (min. 6 chars)...", "Nueva Contraseña Maestra...")}" />
+              <input type="password" class="matz-input writtt-mb-xs" id="st-confirm-pwd" placeholder="${t("Confirmar nova Senha Mestra...", "Confirm new Master Password...", "Confirmar Contraseña Maestra...")}" />
               <button class="matz-btn matz-btn-primary writtt-full-btn" id="st-set-pwd">
-                ${matzIcon("lock", 12)} <span>${t("Criar Senha Mestra", "Create Master Password", "Crear Contrasena Maestra")}</span>
+                ${matzIcon("lock", 12)} <span>${t("Criar Senha Mestra", "Create Master Password", "Crear Contraseña Maestra")}</span>
               </button>`
             : `<p class="writtt-help-note writtt-mb-xs">
-                ${t("Sua Senha Mestra esta ativa. Informe a senha atual para altera-la, desbloquear ou remover a protecao.", "Your Master Password is active. Enter your current password to change it, unlock, or remove protection.", "Tu Contrasena Maestra esta activa.")}
+                ${t("Sua Senha Mestra está ativa. Informe a senha atual para alterá-la, desbloquear ou remover a proteção.", "Your Master Password is active. Enter your current password to change it, unlock, or remove protection.", "Tu Contraseña Maestra está activa.")}
               </p>
-              <input type="password" class="matz-input writtt-mb-xs" id="st-cur-pwd" placeholder="${t("Senha Mestra atual...", "Current Master Password...", "Contrasena Maestra actual...")}" />
-              <input type="password" class="matz-input writtt-mb-xs" id="st-new-pwd" placeholder="${t("Nova Senha Mestra (para alterar)...", "New Master Password (to edit)...", "Nueva Contrasena Maestra...")}" />
+              <input type="password" class="matz-input writtt-mb-xs" id="st-cur-pwd" placeholder="${t("Senha Mestra atual...", "Current Master Password...", "Contraseña Maestra actual...")}" />
+              <input type="password" class="matz-input writtt-mb-xs" id="st-new-pwd" placeholder="${t("Nova Senha Mestra (para alterar)...", "New Master Password (to edit)...", "Nueva Contraseña Maestra...")}" />
               <div id="st-human-slot" class="writtt-mb-xs"></div>
               <div class="writtt-help-note writtt-mono writtt-mb-xs" id="st-auth-status"></div>
               <div class="writtt-inline-form writtt-mb-xs">
@@ -50,7 +50,7 @@ export function renderSecurityVaultTab(
                 <button class="writtt-btn" id="st-unlock-pwd">${t("Desbloquear", "Unlock", "Desbloquear")}</button>
               </div>
               <div class="writtt-inline-form">
-                <button class="writtt-btn writtt-flex-1" id="st-lock-vault">${t("Selar Cofre", "Seal Vault", "Sellar Boveda")}</button>
+                <button class="writtt-btn writtt-flex-1" id="st-lock-vault">${t("Selar Cofre", "Seal Vault", "Sellar Bóveda")}</button>
                 <button class="writtt-btn writtt-btn-danger" id="st-remove-pwd">${t("Remover Senha", "Remove", "Quitar")}</button>
               </div>`
         }
@@ -58,20 +58,20 @@ export function renderSecurityVaultTab(
 
       <div class="writtt-card ${!cfg.password_enabled ? "writtt-dimmed-card" : ""}">
         <div class="writtt-card-title">
-          <span>2. ${t("PIN Rapido & Auto-Bloqueio", "Quick PIN & Auto-Lock", "PIN y Auto-Bloqueo")}</span>
-          <span class="writtt-mono">${cfg.vault_pin_enabled ? "ATIVO" : cfg.password_enabled ? "DISPONIVEL" : "REQUER SENHA"}</span>
+          <span>2. ${t("PIN Rápido & Auto-Bloqueio", "Quick PIN & Auto-Lock", "PIN y Auto-Bloqueo")}</span>
+          <span class="writtt-mono">${cfg.vault_pin_enabled ? "ATIVO" : cfg.password_enabled ? "DISPONÍVEL" : "REQUER SENHA"}</span>
         </div>
         ${
           !cfg.password_enabled
             ? `<div class="writtt-dashed-box writtt-mb-xs">
-                ${t("Cadastre primeiro uma Senha Mestra no cartao ao lado para poder configurar um PIN rapido de 4 a 8 digitos.", "Create a Master Password first before setting up a 4-8 digit Quick PIN.", "Crea primero una Contrasena Maestra para configurar un PIN rapido.")}
+                ${t("Cadastre primeiro uma Senha Mestra no cartão ao lado para poder configurar um PIN rápido de 4 a 8 dígitos.", "Create a Master Password first before setting up a 4-8 digit Quick PIN.", "Crea primero una Contraseña Maestra para configurar un PIN rápido.")}
               </div>`
             : `<p class="writtt-help-note writtt-mb-xs">
-                ${t("O PIN e um atalho numerico (4 a 8 digitos) para reabrir obras do cofre rapidamente sem digitar sua senha longa toda vez.", "Quick PIN (4-8 digits) lets you reopen vaulted works quickly without typing your long password every time.", "Atajo numerico de 4 a 8 digitos para reabrir la boveda.")}
+                ${t("O PIN é um atalho numérico (4 a 8 dígitos) para reabrir obras do cofre rapidamente sem digitar sua senha longa toda vez.", "Quick PIN (4-8 digits) lets you reopen vaulted works quickly without typing your long password every time.", "Atajo numérico de 4 a 8 dígitos para reabrir la bóveda.")}
               </p>
               <div class="writtt-inline-form writtt-mb-md">
                 <button class="matz-btn matz-btn-primary writtt-flex-1" id="st-open-pin-wizard">
-                  ${matzIcon("key", 12)} <span>${cfg.vault_pin_enabled ? t("Alterar PIN Rapido", "Change Quick PIN", "Cambiar PIN") : t("Cadastrar PIN Rapido", "Set Up Quick PIN", "Configurar PIN")}</span>
+                  ${matzIcon("key", 12)} <span>${cfg.vault_pin_enabled ? t("Alterar PIN Rápido", "Change Quick PIN", "Cambiar PIN") : t("Cadastrar PIN Rápido", "Set Up Quick PIN", "Configurar PIN")}</span>
                 </button>
                 ${
                   cfg.vault_pin_enabled
@@ -80,7 +80,7 @@ export function renderSecurityVaultTab(
                 }
               </div>`
         }
-        <label class="writtt-field-label">${t("Bloquear automaticamente apos inatividade:", "Auto-lock after inactivity:", "Auto-bloquear por inactividad:")}</label>
+        <label class="writtt-field-label">${t("Bloquear automaticamente após inatividade:", "Auto-lock after inactivity:", "Auto-bloquear por inactividad:")}</label>
         <select class="matz-select" id="st-autolock">
           <option value="0" ${prefs.autoLockMinutes === 0 ? "selected" : ""}>${t("Desativado", "Disabled", "Desactivado")}</option>
           <option value="5" ${prefs.autoLockMinutes === 5 ? "selected" : ""}>5 minutos</option>
@@ -91,15 +91,15 @@ export function renderSecurityVaultTab(
 
       <div class="writtt-card ${!cfg.password_enabled ? "writtt-dimmed-card" : ""}">
         <div class="writtt-card-title">
-          <span>3. ${t("Chave de Recuperacao (Plano B)", "Recovery Key (Backup Plan)", "Clave de Recuperacion")}</span>
-          <span class="writtt-mono">${cfg.recovery_configured ? "PRONTA" : "NAO GERADA"}</span>
+          <span>3. ${t("Chave de Recuperação (Plano B)", "Recovery Key (Backup Plan)", "Clave de Recuperación")}</span>
+          <span class="writtt-mono">${cfg.recovery_configured ? "PRONTA" : "NÃO GERADA"}</span>
         </div>
         <p class="writtt-help-note writtt-mb-xs">
-          <b>${t("O que e?", "What is this?", "Que es?")}</b>
-          ${t(" Como o Writtt funciona 100% offline sem servidor, nao existe 'esqueci minha senha por e-mail'. Esta chave e o unico modo de recuperar seu cofre caso voce esqueca a Senha Mestra. Gere e guarde em papel ou cofre fisico.", " Because Writtt is 100% offline with no server, there is no email password reset. This key is your only way to recover the vault if you forget your Master Password. Print or store it safely.", " Como Writtt es 100% offline, esta clave es tu unico respaldo si olvidas tu Contrasena Maestra.")}
+          <b>${t("O que é?", "What is this?", "¿Qué es?")}</b>
+          ${t(" Como o Writtt funciona 100% offline sem servidor, não existe 'esqueci minha senha por e-mail'. Esta chave é o único modo de recuperar seu cofre caso você esqueça a Senha Mestra. Gere e guarde em papel ou cofre físico.", " Because Writtt is 100% offline with no server, there is no email password reset. This key is your only way to recover the vault if you forget your Master Password. Print or store it safely.", " Como Writtt es 100% offline, esta clave es tu único respaldo si olvidas tu Contraseña Maestra.")}
         </p>
         <button class="writtt-btn writtt-full-btn writtt-mb-xs" id="st-gen-rk" ${!cfg.password_enabled ? "disabled" : ""}>
-          ${matzIcon("key", 12)} <span>${t("Gerar Chave de Recuperacao", "Generate Recovery Key", "Generar Clave")}</span>
+          ${matzIcon("key", 12)} <span>${t("Gerar Chave de Recuperação", "Generate Recovery Key", "Generar Clave")}</span>
         </button>
         ${
           lastRecoveryKey
@@ -114,12 +114,12 @@ export function renderSecurityVaultTab(
 
       <div class="writtt-card ${!cfg.password_enabled ? "writtt-dimmed-card" : ""}">
         <div class="writtt-card-title">
-          <span>4. ${t("Verificacao em 2 Etapas (TOTP 2FA)", "Two-Factor Auth (TOTP 2FA)", "Autenticacion 2FA (TOTP)")}</span>
+          <span>4. ${t("Verificação em 2 Etapas (TOTP 2FA)", "Two-Factor Auth (TOTP 2FA)", "Autenticación 2FA (TOTP)")}</span>
           <span class="writtt-mono">${cfg.totp_enabled ? `ON (${cfg.backup_codes_left} backups)` : "OFF"}</span>
         </div>
         <p class="writtt-help-note writtt-mb-xs">
-          <b>${t("O que e Segredo TOTP?", "What is a TOTP Secret?", "Que es el Secreto TOTP?")}</b>
-          ${t(" E um codigo secreto que voce cadastra em um app autenticador no celular (Google Authenticator, Authy, 1Password). O app gera codigos temporarios de 6 digitos a cada 30 segundos para proteger ainda mais seu cofre, alem de 8 codigos reserva de uso unico.", " A secret key you add to an authenticator app (Google Authenticator, Authy, 1Password) to generate 6-digit codes every 30s, plus 8 single-use backup codes.", " Es una clave para tu app autenticadora que genera codigos de 6 digitos cada 30 segundos.")}
+          <b>${t("O que é Segredo TOTP?", "What is a TOTP Secret?", "¿Qué es el Secreto TOTP?")}</b>
+          ${t(" É um código secreto que você cadastra em um app autenticador no celular (Google Authenticator, Authy, 1Password). O app gera códigos temporários de 6 dígitos a cada 30 segundos para proteger ainda mais seu cofre, além de 8 códigos reserva de uso único.", " A secret key you add to an authenticator app (Google Authenticator, Authy, 1Password) to generate 6-digit codes every 30s, plus 8 single-use backup codes.", " Es una clave para tu app autenticadora que genera códigos de 6 dígitos cada 30 segundos.")}
         </p>
         <div class="writtt-inline-form writtt-mb-xs">
           <button class="writtt-btn writtt-flex-1" id="st-setup-totp" ${!cfg.password_enabled ? "disabled" : ""}>${t("Gerar Segredo TOTP", "Generate TOTP Secret", "Generar Secreto TOTP")}</button>

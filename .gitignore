@@ -1,7 +1,8 @@
 # Build output
 build/bin/
 build/darwin/
-build/windows/
+build/windows/*
+!build/windows/installer.nsi
 build/linux/
 
 # Frontend

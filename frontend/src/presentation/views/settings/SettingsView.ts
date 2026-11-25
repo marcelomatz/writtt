@@ -54,14 +54,14 @@ export function renderSettingsView(
     {
       id: "appearance",
       icon: "sliders",
-      label: t("Aparencia & Escrita", "Appearance & Writing", "Apariencia y Escritura"),
-      desc: t("Temas, fonte, brilho da tela e auto-salvamento", "Themes, font, screen brightness & auto-save", "Temas, fuente, brillo y auto-guardado"),
+      label: t("Aparência & Escrita", "Appearance & Writing", "Apariencia y Escritura"),
+      desc: t("Temas, fonte, brilho da tela e salvamento automático", "Themes, font, screen brightness & auto-save", "Temas, fuente, brillo y auto-guardado"),
     },
     {
       id: "security",
       icon: "lock",
-      label: t("Cofre & Seguranca", "Vault & Security", "Boveda y Seguridad"),
-      desc: t("Senha Mestra, PIN rapido, recuperacao e 2FA", "Master Password, Quick PIN, recovery & 2FA", "Contrasena, PIN rapido y recuperacion"),
+      label: t("Cofre & Segurança", "Vault & Security", "Bóveda y Seguridad"),
+      desc: t("Senha Mestra, PIN rápido, recuperação e 2FA", "Master Password, Quick PIN, recovery & 2FA", "Contraseña, PIN rápido y recuperación"),
     },
     {
       id: "drive",
@@ -73,18 +73,18 @@ export function renderSettingsView(
       id: "express",
       icon: "certificate",
       label: t("Identidade & Envelopes", "Author Identity & Envelopes", "Identidad y Sobres"),
-      desc: t("Sua assinatura @alias e capsulas confidenciais", "Your @alias signature & sealed text capsules", "Tu firma @alias y sobres confidenciales"),
+      desc: t("Sua assinatura @alias e cápsulas confidenciais", "Your @alias signature & sealed text capsules", "Tu firma @alias y sobres confidenciales"),
     },
     {
       id: "dictionary",
       icon: "bookmark",
-      label: t("Dicionario Pessoal", "Custom Dictionary", "Diccionario Personal"),
-      desc: t("Nomes de personagens, siglas e termos proprios", "Character names, acronyms & custom vocabulary", "Nombres propios y vocabulario personal"),
+      label: t("Dicionário Pessoal", "Custom Dictionary", "Diccionario Personal"),
+      desc: t("Nomes de personagens, siglas e termos próprios", "Character names, acronyms & custom vocabulary", "Nombres propios y vocabulario personal"),
     },
     {
       id: "audit",
       icon: "shield-check",
-      label: t("Dispositivos & Historico Antifraude", "Devices & Tamper-Proof Log", "Dispositivos y Registro Antifraude"),
+      label: t("Dispositivos & Histórico Antifraude", "Devices & Tamper-Proof Log", "Dispositivos y Registro Antifraude"),
       desc: t("Computadores autorizados e prova de integridade", "Authorized computers & integrity verification", "Equipos autorizados y prueba de integridad"),
     },
   ];
@@ -93,7 +93,7 @@ export function renderSettingsView(
     <div class="writtt-settings-layout">
       <aside class="writtt-settings-rail ${settingsRailCollapsed ? "is-collapsed" : ""}" id="st-rail">
         <div class="writtt-rail-head">
-          <span class="writtt-rail-text writtt-rail-heading">${t("Configuracoes", "Settings", "Configuracion")}</span>
+          <span class="writtt-rail-text writtt-rail-heading">${t("Configurações", "Settings", "Configuración")}</span>
           <button class="writtt-btn writtt-btn-ghost writtt-icon-btn-sm" id="st-rail-collapse" title="${t("Recolher / Expandir menu", "Collapse / Expand menu", "Colapsar")}">
             ${matzIcon("sidebar", 13)}
           </button>
